@@ -1,0 +1,57 @@
+/* MediMate/frontend/src/index.css */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── CSS Variables: Light Theme ─────────────────────────── */
+:root, [data-theme="light"] {
+  --bg:          #F4F6FA;
+  --surface:     #FFFFFF;
+  --surface2:    #F4F6FA;
+  --border:      #E5E9F2;
+  --text:        #1A1A2E;
+  --text-muted:  #64748B;
+  --text-light:  #94A3B8;
+  --primary:     #1B3A6B;
+  --primary-lt:  #2952A3;
+  --accent:      #22C55E;
+  --danger:      #DC2626;
+  --warning:     #F59E0B;
+  --shadow:      0 2px 12px rgba(27,58,107,0.08);
+  --shadow-lg:   0 8px 24px rgba(27,58,107,0.14);
+}
+
+/* ── CSS Variables: Dark Theme ──────────────────────────── */
+[data-theme="dark"] {
+  --bg:          #0F172A;
+  --surface:     #1E293B;
+  --surface2:    #162032;
+  --border:      #2D3F5A;
+  --text:        #F1F5F9;
+  --text-muted:  #94A3B8;
+  --text-light:  #64748B;
+  --primary:     #3B82F6;
+  --primary-lt:  #60A5FA;
+  --accent:      #22C55E;
+  --danger:      #EF4444;
+  --warning:     #F59E0B;
+  --shadow:      0 2px 12px rgba(0,0,0,0.3);
+  --shadow-lg:   0 8px 24px rgba(0,0,0,0.4);
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+  body {
+    font-family: "DM Sans", sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.2s, color 0.2s;
+  }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+  input, textarea, select { font-family: "DM Sans", sans-serif; }
+}
