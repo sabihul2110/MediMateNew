@@ -87,11 +87,12 @@ export default function Emergency() {
   const [doctorName,  setDoctorName]        = useState(config?.doctorName || "Dr. Smith")
   const [emergContact,setEmergContact]      = useState(config?.emergencyContact || "")
 
-  const surface = dark?"#1E293B":"#fff"
-  const surface2= dark?"#0F172A":"#F4F6FA"
-  const border  = dark?"#2D3F5A":"#E5E9F2"
-  const textMain= dark?"#F1F5F9":"#1A1A2E"
-  const textMute= dark?"#94A3B8":"#64748B"
+  const glass    = dark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.8)"
+  const inputBg  = dark ? "rgba(255,255,255,0.04)" : "rgba(27,58,107,0.04)"
+  const border   = dark ? "rgba(255,255,255,0.07)" : "rgba(27,58,107,0.1)"
+  const textMain = dark ? "#F1F5F9" : "#1A1A2E"
+  const textMute = dark ? "#64748B" : "#8899B4"
+  const accent   = dark ? "#60A5FA" : "#1B3A6B"
 
   useEffect(()=>{
     // Try to pre-fill from user profile
@@ -129,14 +130,14 @@ export default function Emergency() {
   const displayDoctor    = config?.doctorName || doctorName || "Doctor"
   const displayDoctorPh  = config?.doctorPhone || doctorPhone || ""
 
-  const inputSt = { width:"100%", backgroundColor:surface2, border:`1px solid ${border}`, borderRadius:8, padding:"8px 12px", fontSize:13, color:textMain, outline:"none", fontFamily:"DM Sans,sans-serif" }
+  const inputSt = { width:"100%", background:inputBg, border:`1px solid ${border}`, borderRadius:12, padding:"10px 14px", fontSize:13, color:textMain, outline:"none", fontFamily:"'DM Sans',sans-serif", transition:"border-color 0.2s", boxSizing:"border-box" }
 
   return (
     <div style={{ maxWidth:1000, margin:"0 auto" }}>
       {/* Config modal */}
       {showConfig && (
-        <div style={{ position:"fixed", inset:0, backgroundColor:"rgba(0,0,0,0.5)", zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center" }}>
-          <div style={{ backgroundColor:surface, borderRadius:20, padding:28, width:420, boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }}>
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", backdropFilter:"blur(8px)", zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <div style={{ background:glass, backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", borderRadius:24, padding:30, width:440, boxShadow:"0 20px 60px rgba(0,0,0,0.3)", border:`1px solid ${border}` }}>
             <h3 style={{ fontSize:16, fontWeight:700, color:textMain, marginBottom:16 }}>⚙️ Emergency Configuration</h3>
             <div style={{ marginBottom:12 }}>
               <label style={{ fontSize:11, fontWeight:600, color:textMute, textTransform:"uppercase", letterSpacing:"0.08em", display:"block", marginBottom:6 }}>Country</label>
@@ -161,15 +162,15 @@ export default function Emergency() {
               </div>
             ))}
             <div style={{ display:"flex", gap:10, marginTop:16 }}>
-              <button onClick={saveConfig} style={{ flex:1, backgroundColor:"#1B3A6B", color:"#fff", border:0, borderRadius:10, padding:"11px 0", fontSize:14, fontWeight:700, cursor:"pointer" }}>Save</button>
-              <button onClick={()=>setShowConfig(false)} style={{ flex:1, background:"none", border:`1px solid ${border}`, borderRadius:10, padding:"11px 0", fontSize:14, color:textMute, cursor:"pointer" }}>Cancel</button>
+              <button onClick={saveConfig} style={{ flex:1, background:"linear-gradient(135deg,#1B3A6B,#2952A3)", color:"#fff", border:"1px solid rgba(255,255,255,0.1)", borderRadius:14, padding:"12px 0", fontSize:14, fontWeight:700, cursor:"pointer", boxShadow:"0 4px 16px rgba(27,58,107,0.35)" }}>Save</button>
+              <button onClick={()=>setShowConfig(false)} style={{ flex:1, background:"none", border:`1px solid ${border}`, borderRadius:14, padding:"12px 0", fontSize:14, color:textMute, cursor:"pointer" }}>Cancel</button>
             </div>
           </div>
         </div>
       )}
 
       {/* Critical banner */}
-      <div style={{ backgroundColor:"#DC2626", borderRadius:16, padding:"24px 28px", marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"center", position:"relative", overflow:"hidden" }}>
+      <div style={{ background:"linear-gradient(135deg,#DC2626 0%,#B91C1C 100%)", borderRadius:22, padding:"28px 32px", marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"center", position:"relative", overflow:"hidden", boxShadow:"0 12px 40px rgba(220,38,38,0.35)" }}>
         <div style={{ position:"absolute", right:-40, top:-40, width:200, height:200, borderRadius:"50%", background:"rgba(255,255,255,0.05)" }}/>
         <div>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
@@ -225,7 +226,7 @@ export default function Emergency() {
       <div style={{ display:"grid", gridTemplateColumns:"1fr 300px", gap:20 }}>
         <div>
           {/* Type selector */}
-          <div style={{ backgroundColor:surface, borderRadius:16, padding:22, boxShadow:"0 2px 12px rgba(27,58,107,0.08)", marginBottom:20 }}>
+          <div style={{ background:glass, backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:20, padding:22, border:`1px solid ${border}`, boxShadow:"0 4px 24px rgba(0,0,0,0.06)", marginBottom:20 }}>
             <h2 style={{ fontSize:15, fontWeight:700, color:textMain, marginBottom:16 }}>Select Current Emergency</h2>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
               {EMERGENCIES.map(e=>(
@@ -238,7 +239,7 @@ export default function Emergency() {
           </div>
 
           {/* Steps */}
-          <div style={{ backgroundColor:surface, borderRadius:16, padding:22, boxShadow:"0 2px 12px rgba(27,58,107,0.08)" }}>
+          <div style={{ background:glass, backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:20, padding:22, border:`1px solid ${border}`, boxShadow:"0 4px 24px rgba(0,0,0,0.06)" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
               <h2 style={{ fontSize:15, fontWeight:700, color:textMain }}>{sel?`Steps for ${sel.label}`:"Immediate Life-Saving Steps"}</h2>
               <button onClick={()=>exportEmergencyGuide(selected,config)} style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 12px", borderRadius:8, border:`1px solid ${border}`, backgroundColor:"transparent", color:textMute, fontSize:12, cursor:"pointer" }}>
@@ -259,7 +260,7 @@ export default function Emergency() {
 
         {/* Right: Map */}
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-          <div style={{ backgroundColor:surface, borderRadius:16, padding:20, boxShadow:"0 2px 12px rgba(27,58,107,0.08)" }}>
+          <div style={{ background:glass, backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:20, padding:20, border:`1px solid ${border}`, boxShadow:"0 4px 24px rgba(0,0,0,0.06)" }}>
             <h3 style={{ fontSize:14, fontWeight:700, color:textMain, marginBottom:4 }}>Nearest Hospital</h3>
             <p style={{ fontSize:12, color:textMute, marginBottom:12 }}>Search for hospitals near you</p>
             {/* Static map link — no API key needed */}
@@ -293,7 +294,7 @@ export default function Emergency() {
             </div>
           </div>
 
-          <div style={{ backgroundColor:surface, borderRadius:14, padding:18, border:`1px solid ${dark?"#5B2020":"#FECACA"}`, boxShadow:"0 2px 12px rgba(27,58,107,0.08)" }}>
+          <div style={{ background:"rgba(220,38,38,0.06)", backdropFilter:"blur(16px)", borderRadius:18, padding:18, border:"1px solid rgba(220,38,38,0.2)", boxShadow:"0 4px 24px rgba(0,0,0,0.06)" }}>
             <p style={{ fontSize:12, fontWeight:700, color:"#DC2626", marginBottom:10 }}>⛔ Do NOT</p>
             {["Leave the patient alone","Give food or water","Move if spinal injury suspected","Panic — stay calm and focused"].map(s=>(
               <p key={s} style={{ fontSize:12, color:textMain, marginBottom:6 }}>● {s}</p>

@@ -1,23 +1,21 @@
 // MediMate/frontend/src/layouts/AppLayout.jsx
 import { useState, useEffect } from "react"
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
-import { LayoutDashboard, Scan, Activity, Heart, MessageSquare, AlertTriangle, TrendingUp, Sun, Moon, LogOut, User, Salad } from "lucide-react"
+import { LayoutDashboard, Scan, Activity, Heart, MessageSquare, AlertTriangle, TrendingUp, Sun, Moon, LogOut, User, Salad, Search, Bell } from "lucide-react"
 import { useApp } from "../context/ThemeContext"
 import { NotificationBell } from "../components/NotificationPanel"
 import NotificationPanel from "../components/NotificationPanel"
-import Onboarding from "../components/Onboarding"
+import Onboarding, { getOnboardingKey } from "../components/Onboarding"
 
 const NAV = [
-  { to:"/",           icon:LayoutDashboard, label:"Dashboard"       },
-  { to:"/mediscan",   icon:Scan,            label:"MediScan"        },
-  { to:"/tracking",   icon:Activity,        label:"Health Tracking" },
-  { to:"/heart-risk", icon:Heart,           label:"Heart Risk"      },
-  { to:"/diet",       icon:Salad,           label:"Diet & Nutrition"},
-  { to:"/assistant",  icon:MessageSquare,   label:"AI Assistant"    },
-  { to:"/insights",   icon:TrendingUp,      label:"Health Insights" },
+  { to: "/",           icon: LayoutDashboard, label: "Dashboard"       },
+  { to: "/mediscan",   icon: Scan,            label: "MediScan"        },
+  { to: "/tracking",   icon: Activity,        label: "Health Tracking" },
+  { to: "/heart-risk", icon: Heart,           label: "Heart Risk"      },
+  { to: "/diet",       icon: Salad,           label: "Diet & Nutrition"},
+  { to: "/assistant",  icon: MessageSquare,   label: "AI Assistant"    },
+  { to: "/insights",   icon: TrendingUp,      label: "Health Insights" },
 ]
-
-const ONBOARDING_KEY = "mm_onboarding_done"
 
 export default function AppLayout() {
   const { theme, toggleTheme, user, logout } = useApp()
@@ -27,98 +25,287 @@ export default function AppLayout() {
 
   const [showNotifs,     setShowNotifs]     = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [hoveredNav,     setHoveredNav]     = useState(null)
+  const [searchFocused,  setSearchFocused]  = useState(false)
 
-  useEffect(()=>{
-    if(!localStorage.getItem(ONBOARDING_KEY)){
-      setTimeout(()=>setShowOnboarding(true), 800)
+  useEffect(() => {
+    if (!user?.email) return
+    const key = getOnboardingKey(user.email)
+    if (!localStorage.getItem(key)) {
+      setTimeout(() => setShowOnboarding(true), 1000)
     }
-  },[])
+  }, [user?.email])
 
-  const completeOnboarding = () => {
-    localStorage.setItem(ONBOARDING_KEY,"1")
-    setShowOnboarding(false)
+  const completeOnboarding = () => setShowOnboarding(false)
+
+  const pageLabels = {
+    "/emergency": "Emergency", "/profile": "Profile", "/find-doctor": "Find Doctor",
+    "/export": "Export Report", "/diet": "Diet & Nutrition",
   }
-
-  const pageLabels = {"/emergency":"Emergency","/profile":"Profile","/find-doctor":"Find Doctor","/export":"Export Report","/diet":"Diet & Nutrition"}
-  const current = NAV.find(n => n.to==="/" ? location.pathname==="/" : location.pathname.startsWith(n.to))
+  const current   = NAV.find(n => n.to === "/" ? location.pathname === "/" : location.pathname.startsWith(n.to))
   const pageTitle = pageLabels[location.pathname] || current?.label || "MediMate"
 
-  const C = {
-    aside:  { width:220, flexShrink:0, backgroundColor:dark?"#1E293B":"#fff", boxShadow:dark?"2px 0 20px rgba(0,0,0,0.3)":"2px 0 16px rgba(27,58,107,0.06)", display:"flex", flexDirection:"column", zIndex:10 },
-    header: { height:56, backgroundColor:dark?"#1E293B":"#fff", borderBottom:`1px solid ${dark?"#2D3F5A":"#E5E9F2"}`, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 24px", flexShrink:0 },
-    main:   { flex:1, overflowY:"auto", padding:24, backgroundColor:dark?"#0F172A":"#F4F6FA" },
-    link:   (a)=>({ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:12, marginBottom:2, textDecoration:"none", fontSize:13, fontWeight:500, transition:"all 0.15s", backgroundColor:a?(dark?"#3B82F6":"#1B3A6B"):"transparent", color:a?"#fff":(dark?"#94A3B8":"#64748B") }),
+  // Design tokens
+  const bg         = dark ? "#060D1A" : "#F0F4FF"
+  const sidebarBg  = dark ? "rgba(15,23,42,0.85)" : "rgba(255,255,255,0.75)"
+  const headerBg   = dark ? "rgba(6,13,26,0.80)" : "rgba(240,244,255,0.85)"
+  const glassB     = dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.9)"
+  const borderC    = dark ? "rgba(255,255,255,0.07)" : "rgba(27,58,107,0.1)"
+  const textMain   = dark ? "#F1F5F9" : "#1A1A2E"
+  const textMute   = dark ? "#64748B" : "#8899B4"
+  const accent     = "#1B3A6B"
+  const accentGlow = dark ? "rgba(41,82,163,0.35)" : "rgba(27,58,107,0.12)"
+
+  const activeNavStyle = {
+    background: dark
+      ? "linear-gradient(135deg, rgba(41,82,163,0.6), rgba(27,58,107,0.4))"
+      : "linear-gradient(135deg, #1B3A6B, #2952A3)",
+    color: "#fff",
+    boxShadow: `0 4px 16px ${accentGlow}`,
+    border: "1px solid rgba(255,255,255,0.12)",
+  }
+
+  const inactiveNavStyle = (hov) => ({
+    background: hov ? (dark ? "rgba(255,255,255,0.05)" : "rgba(27,58,107,0.06)") : "transparent",
+    color: hov ? (dark ? "#CBD5E1" : accent) : textMute,
+    border: "1px solid transparent",
+  })
+
+  const baseNavStyle = {
+    display: "flex", alignItems: "center", gap: 10,
+    padding: "10px 14px", borderRadius: 14, marginBottom: 3,
+    textDecoration: "none", fontSize: 13, fontWeight: 500,
+    transition: "all 0.2s cubic-bezier(0.4,0,0.2,1)",
+    cursor: "pointer",
   }
 
   return (
-    <div style={{ display:"flex", height:"100vh", overflow:"hidden" }}>
-      <aside style={C.aside}>
-        <div style={{ padding:"18px 20px", borderBottom:`1px solid ${dark?"#2D3F5A":"#E5E9F2"}` }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:32, height:32, borderRadius:8, backgroundColor:dark?"#3B82F6":"#1B3A6B", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <Heart size={15} color="#fff"/>
+    <div style={{
+      display: "flex", height: "100vh", overflow: "hidden",
+      background: dark
+        ? "radial-gradient(ellipse at 20% 50%, rgba(27,58,107,0.15) 0%, #060D1A 60%)"
+        : "radial-gradient(ellipse at 20% 50%, rgba(41,82,163,0.08) 0%, #F0F4FF 60%)",
+      fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+    }}>
+
+      {/* Sidebar */}
+      <aside style={{
+        width: 228, flexShrink: 0,
+        background: sidebarBg,
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        borderRight: `1px solid ${borderC}`,
+        display: "flex", flexDirection: "column",
+        zIndex: 20,
+        boxShadow: dark ? "4px 0 32px rgba(0,0,0,0.4)" : "4px 0 24px rgba(27,58,107,0.08)",
+      }}>
+
+        {/* Logo */}
+        <div style={{ padding: "20px 18px 16px", borderBottom: `1px solid ${borderC}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: "linear-gradient(135deg, #1B3A6B, #2952A3)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 4px 12px rgba(27,58,107,0.4)",
+            }}>
+              <Heart size={16} color="#fff" fill="rgba(255,255,255,0.3)" />
             </div>
             <div>
-              <p style={{ color:dark?"#F1F5F9":"#1B3A6B", fontWeight:700, fontSize:15, margin:0 }}>MediMate</p>
-              <p style={{ color:"#94A3B8", fontSize:9, textTransform:"uppercase", letterSpacing:"0.1em", margin:0 }}>AI Health</p>
+              <p style={{ color: dark ? "#F1F5F9" : "#1B3A6B", fontWeight: 700, fontSize: 15, margin: 0, letterSpacing: "-0.3px" }}>MediMate</p>
+              <p style={{ color: textMute, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.15em", margin: 0 }}>AI Health Platform</p>
             </div>
           </div>
         </div>
 
-        {user&&(
-          <div style={{ padding:"10px 14px", borderBottom:`1px solid ${dark?"#2D3F5A":"#E5E9F2"}` }}>
-            <div onClick={()=>navigate("/profile")} style={{ display:"flex", alignItems:"center", gap:8, backgroundColor:dark?"#0F172A":"#F4F6FA", borderRadius:12, padding:"8px 10px", cursor:"pointer" }}>
-              <div style={{ width:28, height:28, borderRadius:"50%", backgroundColor:dark?"#3B82F6":"#1B3A6B", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                <span style={{ color:"#fff", fontSize:11, fontWeight:700 }}>{user.avatar}</span>
+        {/* User block */}
+        {user && (
+          <div style={{ padding: "12px 14px", borderBottom: `1px solid ${borderC}` }}>
+            <div onClick={() => navigate("/profile")} style={{
+              display: "flex", alignItems: "center", gap: 10,
+              background: dark ? "rgba(255,255,255,0.04)" : "rgba(27,58,107,0.05)",
+              borderRadius: 12, padding: "10px 12px", cursor: "pointer",
+              border: `1px solid ${borderC}`,
+              transition: "all 0.2s",
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = dark ? "rgba(255,255,255,0.08)" : "rgba(27,58,107,0.09)"}
+              onMouseLeave={e => e.currentTarget.style.background = dark ? "rgba(255,255,255,0.04)" : "rgba(27,58,107,0.05)"}
+            >
+              <div style={{
+                width: 30, height: 30, borderRadius: "50%",
+                background: "linear-gradient(135deg, #1B3A6B, #2952A3)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0, boxShadow: "0 2px 8px rgba(27,58,107,0.35)",
+              }}>
+                <span style={{ color: "#fff", fontSize: 12, fontWeight: 700 }}>{user.avatar}</span>
               </div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <p style={{ color:dark?"#F1F5F9":"#1B3A6B", fontSize:12, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", margin:0 }}>{user.name}</p>
-                <p style={{ color:"#94A3B8", fontSize:10, margin:0 }}>● Active</p>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ color: dark ? "#F1F5F9" : "#1B3A6B", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", margin: 0 }}>{user.name}</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
+                  <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#22C55E" }} />
+                  <p style={{ color: "#22C55E", fontSize: 10, margin: 0, fontWeight: 500 }}>Active</p>
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        <nav style={{ flex:1, padding:"10px 10px", overflowY:"auto" }}>
-          {NAV.map(({ to, icon:Icon, label })=>(
-            <NavLink key={to} to={to} end={to==="/"} style={({ isActive })=>C.link(isActive)}>
-              <Icon size={16}/>{label}
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: "12px 10px", overflowY: "auto" }}>
+          <p style={{ fontSize: 9, fontWeight: 700, color: textMute, textTransform: "uppercase", letterSpacing: "0.14em", margin: "0 4px 8px", paddingLeft: 4 }}>Navigation</p>
+          {NAV.map(({ to, icon: Icon, label }) => (
+            <NavLink key={to} to={to} end={to === "/"}
+              style={({ isActive }) => ({
+                ...baseNavStyle,
+                ...(isActive ? activeNavStyle : inactiveNavStyle(hoveredNav === to)),
+              })}
+              onMouseEnter={() => setHoveredNav(to)}
+              onMouseLeave={() => setHoveredNav(null)}
+            >
+              <Icon size={15} />
+              <span>{label}</span>
             </NavLink>
           ))}
         </nav>
 
-        <div style={{ padding:"10px 14px", borderTop:`1px solid ${dark?"#2D3F5A":"#E5E9F2"}`, display:"flex", flexDirection:"column", gap:4 }}>
-          <NavLink to="/profile" style={({ isActive })=>({ display:"flex", alignItems:"center", gap:8, padding:"9px 12px", borderRadius:12, textDecoration:"none", fontSize:13, fontWeight:500, backgroundColor:isActive?(dark?"#2D3F5A":"#F4F6FA"):"transparent", color:dark?"#94A3B8":"#64748B" })}>
-            <User size={14}/> Profile
+        {/* Bottom actions */}
+        <div style={{ padding: "10px 10px 14px", borderTop: `1px solid ${borderC}` }}>
+          <NavLink to="/profile"
+            style={({ isActive }) => ({
+              ...baseNavStyle,
+              ...(isActive ? { ...activeNavStyle, marginBottom: 3 } : { ...inactiveNavStyle(hoveredNav === "/profile"), marginBottom: 3 }),
+            })}
+            onMouseEnter={() => setHoveredNav("/profile")}
+            onMouseLeave={() => setHoveredNav(null)}
+          >
+            <User size={15} /> Profile
           </NavLink>
-          <NavLink to="/emergency" style={({ isActive })=>({ display:"flex", alignItems:"center", gap:8, padding:"9px 12px", borderRadius:12, textDecoration:"none", fontSize:13, fontWeight:600, backgroundColor:isActive?"#DC2626":"rgba(220,38,38,0.08)", color:isActive?"#fff":"#DC2626" })}>
-            <AlertTriangle size={15}/> Emergency
+
+          <NavLink to="/emergency"
+            style={({ isActive }) => ({
+              ...baseNavStyle,
+              background: isActive ? "#DC2626" : "rgba(220,38,38,0.08)",
+              color: isActive ? "#fff" : "#DC2626",
+              border: "1px solid rgba(220,38,38,0.2)",
+              marginBottom: 3,
+            })}
+          >
+            <AlertTriangle size={15} /> Emergency
           </NavLink>
-          <button onClick={()=>{logout();navigate("/auth")}} style={{ display:"flex", alignItems:"center", gap:8, padding:"9px 12px", borderRadius:12, border:0, fontSize:13, fontWeight:500, cursor:"pointer", backgroundColor:"transparent", color:dark?"#64748B":"#94A3B8", width:"100%" }}>
-            <LogOut size={14}/> Log out
+
+          <button onClick={() => { logout(); navigate("/auth") }} style={{
+            ...baseNavStyle,
+            background: "transparent", color: textMute,
+            border: "1px solid transparent", width: "100%",
+            marginBottom: 0,
+          }}
+            onMouseEnter={e => { e.currentTarget.style.background = dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"; e.currentTarget.style.color = textMain }}
+            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = textMute }}
+          >
+            <LogOut size={15} /> Log out
           </button>
         </div>
       </aside>
 
-      <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-        <header style={C.header}>
-          <h1 style={{ fontSize:15, fontWeight:600, color:dark?"#F1F5F9":"#1A1A2E", margin:0 }}>{pageTitle}</h1>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <input placeholder="Search..." style={{ backgroundColor:dark?"#0F172A":"#F4F6FA", border:`1px solid ${dark?"#2D3F5A":"#E5E9F2"}`, borderRadius:10, padding:"6px 14px", fontSize:13, color:dark?"#F1F5F9":"#1A1A2E", outline:"none", width:200 }}/>
-            <button onClick={toggleTheme} style={{ background:"none", border:`1px solid ${dark?"#2D3F5A":"#E5E9F2"}`, borderRadius:8, padding:"5px 8px", cursor:"pointer", color:dark?"#94A3B8":"#64748B", display:"flex", alignItems:"center" }}>
-              {dark?<Sun size={15}/>:<Moon size={15}/>}
+      {/* Main area */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+        {/* Topbar */}
+        <header style={{
+          height: 60, flexShrink: 0,
+          background: headerBg,
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          borderBottom: `1px solid ${borderC}`,
+          display: "flex", alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 28px",
+          zIndex: 15,
+          boxShadow: dark ? "0 1px 24px rgba(0,0,0,0.3)" : "0 1px 16px rgba(27,58,107,0.06)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {current?.icon && <current.icon size={16} color={textMute} />}
+              <h1 style={{ fontSize: 15, fontWeight: 600, color: textMain, margin: 0 }}>{pageTitle}</h1>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Search */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8,
+              background: searchFocused
+                ? (dark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.95)")
+                : (dark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.6)"),
+              border: `1px solid ${searchFocused ? (dark ? "rgba(41,82,163,0.5)" : "rgba(27,58,107,0.2)") : borderC}`,
+              borderRadius: 10, padding: "7px 14px",
+              transition: "all 0.2s",
+              boxShadow: searchFocused ? `0 0 0 3px ${accentGlow}` : "none",
+            }}>
+              <Search size={13} color={textMute} />
+              <input
+                placeholder="Search..."
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                style={{
+                  background: "none", border: "none", outline: "none",
+                  fontSize: 13, color: textMain, width: 180,
+                  fontFamily: "inherit",
+                }}
+              />
+            </div>
+
+            {/* Theme toggle */}
+            <button onClick={toggleTheme} style={{
+              background: dark ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.8)",
+              border: `1px solid ${borderC}`,
+              borderRadius: 9, padding: "7px 9px",
+              cursor: "pointer", color: textMute,
+              display: "flex", alignItems: "center",
+              transition: "all 0.2s",
+            }}
+              onMouseEnter={e => e.currentTarget.style.color = textMain}
+              onMouseLeave={e => e.currentTarget.style.color = textMute}
+            >
+              {dark ? <Sun size={15} /> : <Moon size={15} />}
             </button>
-            <NotificationBell onClick={()=>setShowNotifs(v=>!v)} dark={dark}/>
-            {user&&<div onClick={()=>navigate("/profile")} style={{ width:32, height:32, borderRadius:"50%", backgroundColor:dark?"#3B82F6":"#1B3A6B", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:12, fontWeight:700, color:"#fff" }}>{user.avatar}</div>}
+
+            {/* Notifications */}
+            <NotificationBell onClick={() => setShowNotifs(v => !v)} dark={dark} />
+
+            {/* Avatar */}
+            {user && (
+              <div onClick={() => navigate("/profile")} style={{
+                width: 34, height: 34, borderRadius: "50%",
+                background: "linear-gradient(135deg, #1B3A6B, #2952A3)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#fff",
+                boxShadow: "0 2px 10px rgba(27,58,107,0.35)",
+                border: "2px solid rgba(255,255,255,0.15)",
+                transition: "transform 0.2s",
+              }}
+                onMouseEnter={e => e.currentTarget.style.transform = "scale(1.05)"}
+                onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
+              >
+                {user.avatar}
+              </div>
+            )}
           </div>
         </header>
 
-        {showNotifs&&<div style={{ position:"fixed", inset:0, zIndex:999 }} onClick={()=>setShowNotifs(false)}/>}
-        {showNotifs&&<NotificationPanel onClose={()=>setShowNotifs(false)}/>}
-        <main style={C.main}><Outlet/></main>
+        {/* Notification overlay */}
+        {showNotifs && <div style={{ position: "fixed", inset: 0, zIndex: 999 }} onClick={() => setShowNotifs(false)} />}
+        {showNotifs && <NotificationPanel onClose={() => setShowNotifs(false)} />}
+
+        {/* Page content */}
+        <main style={{
+          flex: 1, overflowY: "auto", padding: 28,
+        }}>
+          <Outlet />
+        </main>
       </div>
 
-      {showOnboarding&&<Onboarding onComplete={completeOnboarding}/>}
+      {showOnboarding && <Onboarding onComplete={completeOnboarding} />}
     </div>
   )
 }

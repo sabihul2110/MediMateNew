@@ -102,11 +102,11 @@ export default function Insights() {
   const [loading,     setLoading]     = useState(true)
   const [filter,      setFilter]      = useState("All")
 
-  const surface  = dark?"#1E293B":"#fff"
-  const surface2 = dark?"#0F172A":"#F4F6FA"
-  const border   = dark?"#2D3F5A":"#E5E9F2"
-  const textMain = dark?"#F1F5F9":"#1A1A2E"
-  const textMute = dark?"#94A3B8":"#64748B"
+  const glass    = dark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.8)"
+  const surface2 = dark ? "rgba(255,255,255,0.025)" : "rgba(27,58,107,0.04)"
+  const border   = dark ? "rgba(255,255,255,0.07)" : "rgba(27,58,107,0.1)"
+  const textMain = dark ? "#F1F5F9" : "#1A1A2E"
+  const textMute = dark ? "#64748B" : "#8899B4"
 
   useEffect(()=>{ fetchAll() },[])
 
@@ -253,7 +253,7 @@ export default function Insights() {
           const delta = latest&&prevVal?latest-prevVal:null
           const hasData = data.some(d=>d.value>0)
           return (
-            <div key={label} style={{backgroundColor:surface,borderRadius:14,padding:18,boxShadow:"0 2px 12px rgba(27,58,107,0.08)"}}>
+            <div key={label} style={{background:glass,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderRadius:14,padding:18,boxShadow:"0 2px 12px rgba(27,58,107,0.08)"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                 <span style={{fontSize:12,fontWeight:600,color:textMute}}>{label}</span>
                 {delta!==null&&(
@@ -290,7 +290,7 @@ export default function Insights() {
       {(sleepLogs.length>1||actLogs.length>1)&&(
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:20}}>
           {sleepLogs.length>1&&(
-            <div style={{backgroundColor:surface,borderRadius:14,padding:18,boxShadow:"0 2px 12px rgba(27,58,107,0.08)"}}>
+            <div style={{background:glass,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderRadius:14,padding:18,boxShadow:"0 2px 12px rgba(27,58,107,0.08)"}}>
               <p style={{fontSize:13,fontWeight:700,color:textMain,marginBottom:14}}>🌙 Sleep Trend (hrs)</p>
               <ResponsiveContainer width="100%" height={120}>
                 <BarChart data={chartData(sleepLogs,"hours")} margin={{top:0,right:0,bottom:0,left:-20}}>
@@ -304,7 +304,7 @@ export default function Insights() {
             </div>
           )}
           {actLogs.length>1&&(
-            <div style={{backgroundColor:surface,borderRadius:14,padding:18,boxShadow:"0 2px 12px rgba(27,58,107,0.08)"}}>
+            <div style={{background:glass,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderRadius:14,padding:18,boxShadow:"0 2px 12px rgba(27,58,107,0.08)"}}>
               <p style={{fontSize:13,fontWeight:700,color:textMain,marginBottom:14}}>⚡ Daily Steps</p>
               <ResponsiveContainer width="100%" height={120}>
                 <BarChart data={chartData(actLogs,"steps")} margin={{top:0,right:0,bottom:0,left:-20}}>
@@ -321,7 +321,7 @@ export default function Insights() {
       )}
 
       {logs.length===0&&!loading&&(
-        <div style={{backgroundColor:surface,borderRadius:16,padding:40,textAlign:"center",boxShadow:"0 2px 12px rgba(27,58,107,0.08)",marginBottom:20}}>
+        <div style={{background:glass,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderRadius:16,padding:40,textAlign:"center",boxShadow:"0 2px 12px rgba(27,58,107,0.08)",marginBottom:20}}>
           <p style={{fontSize:15,fontWeight:600,color:textMain,marginBottom:8}}>No data yet</p>
           <p style={{fontSize:13,color:textMute,marginBottom:16}}>Start logging your vitals, BMI, sleep and activity in Health Tracking to see trends here.</p>
           <button onClick={()=>navigate("/tracking")} style={{backgroundColor:dark?"#3B82F6":"#1B3A6B",color:"#fff",border:0,borderRadius:12,padding:"10px 24px",fontSize:14,fontWeight:600,cursor:"pointer"}}>
@@ -332,7 +332,7 @@ export default function Insights() {
 
       <div style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:20}}>
         {/* History timeline */}
-        <div style={{backgroundColor:surface,borderRadius:16,padding:22,boxShadow:"0 2px 12px rgba(27,58,107,0.08)"}}>
+        <div style={{background:glass,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderRadius:16,padding:22,boxShadow:"0 2px 12px rgba(27,58,107,0.08)"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
             <h2 style={{fontSize:15,fontWeight:700,color:textMain}}>Activity History</h2>
             <button onClick={fetchAll} style={{background:"none",border:0,cursor:"pointer",color:textMute,display:"flex",alignItems:"center",gap:4,fontSize:12}}>
@@ -357,8 +357,8 @@ export default function Insights() {
                   const time=log.logged_at?new Date(log.logged_at).toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"}):""
                   const s=logStatus(log)
                   return (
-                    <div key={i} style={{backgroundColor:surface2,borderRadius:12,padding:"12px 14px",display:"flex",gap:10,alignItems:"flex-start"}}>
-                      <div style={{width:36,height:36,borderRadius:10,backgroundColor:surface,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
+                    <div key={i} style={{background:glass,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderRadius:12,padding:"12px 14px",display:"flex",gap:10,alignItems:"flex-start"}}>
+                      <div style={{width:36,height:36,borderRadius:10,background:glass,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
                         {TYPE_ICON[log.type]||"📋"}
                       </div>
                       <div style={{flex:1,minWidth:0}}>
@@ -382,7 +382,7 @@ export default function Insights() {
         {/* Right panel */}
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
           {/* Risk Score Engine */}
-          <div style={{backgroundColor:surface,borderRadius:16,boxShadow:"0 2px 12px rgba(27,58,107,0.08)",padding:22}}>
+          <div style={{background:glass,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderRadius:16,boxShadow:"0 2px 12px rgba(27,58,107,0.08)",padding:22}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
               <h2 style={{fontSize:14,fontWeight:700,color:textMain,display:"flex",alignItems:"center",gap:8}}>
                 <Heart size={15} color="#DC2626"/> Risk Score Engine
@@ -418,7 +418,7 @@ export default function Insights() {
                     </button>
                   </div>
                 </div>
-                <div style={{backgroundColor:surface2,borderRadius:10,padding:12,marginBottom:12}}>
+                <div style={{background:glass,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderRadius:10,padding:12,marginBottom:12}}>
                   <ConfidenceBadge logs={logs} dark={dark}/>
                 </div>
                 {riskResult.contributing_factors.slice(0,3).map((f,i)=>{
@@ -438,7 +438,7 @@ export default function Insights() {
           </div>
 
           {/* This week */}
-          <div style={{backgroundColor:surface,borderRadius:16,padding:20,boxShadow:"0 2px 12px rgba(27,58,107,0.08)"}}>
+          <div style={{background:glass,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderRadius:16,padding:20,boxShadow:"0 2px 12px rgba(27,58,107,0.08)"}}>
             <h3 style={{fontSize:14,fontWeight:700,color:textMain,marginBottom:14}}>This Week</h3>
             {[
               {label:"Vitals logged",    value:vitalsLogs.length,                                                              icon:"❤️"},
@@ -472,7 +472,6 @@ export default function Insights() {
           </div>
         </div>
       </div>
-      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
     </div>
   )
 }

@@ -13,11 +13,11 @@ export default function ExportReport() {
   const [done,    setDone]    = useState(false)
   const [counts,  setCounts]  = useState(null)
 
-  const surface  = dark?"#1E293B":"#fff"
-  const surface2 = dark?"#0F172A":"#F4F6FA"
-  const border   = dark?"#2D3F5A":"#E5E9F2"
-  const textMain = dark?"#F1F5F9":"#1A1A2E"
-  const textMute = dark?"#94A3B8":"#64748B"
+  const glass    = dark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.8)"
+  const surface2 = dark ? "rgba(255,255,255,0.025)" : "rgba(27,58,107,0.04)"
+  const border   = dark ? "rgba(255,255,255,0.07)" : "rgba(27,58,107,0.1)"
+  const textMain = dark ? "#F1F5F9" : "#1A1A2E"
+  const textMute = dark ? "#64748B" : "#8899B4"
 
   const doExport = async () => {
     setLoading(true); setDone(false)
@@ -47,10 +47,10 @@ export default function ExportReport() {
   }
 
   return (
-    <div style={{ maxWidth:500, margin:"0 auto" }}>
-      <div style={{ backgroundColor:surface, borderRadius:20, padding:32, boxShadow:"0 2px 12px rgba(27,58,107,0.08)" }}>
+    <div style={{ maxWidth:600, margin:"0 auto" }}>
+      <div style={{ background:glass, backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:24, padding:36, border:`1px solid ${border}`, boxShadow:"0 8px 40px rgba(0,0,0,0.08)" }}>
         <div style={{ textAlign:"center", marginBottom:24 }}>
-          <div style={{ width:64, height:64, borderRadius:16, background:"linear-gradient(135deg,#1B3A6B,#2952A3)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px" }}>
+          <div style={{ width:64, height:64, borderRadius:18, background:"linear-gradient(135deg,#1B3A6B,#2952A3)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px", boxShadow:"0 8px 24px rgba(27,58,107,0.35)" }}>
             <FileText size={28} color="#fff"/>
           </div>
           <h2 style={{ fontSize:20, fontWeight:700, color:textMain, marginBottom:8 }}>Export Health Report</h2>
@@ -97,7 +97,7 @@ export default function ExportReport() {
           </div>
         )}
 
-        <button onClick={doExport} disabled={loading} style={{ width:"100%", backgroundColor:loading?"#94A3B8":"#1B3A6B", color:"#fff", border:0, borderRadius:12, padding:"14px 0", fontSize:15, fontWeight:700, cursor:loading?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+        <button onClick={doExport} disabled={loading} style={{ width:"100%", background:loading?"rgba(27,58,107,0.4)":"linear-gradient(135deg,#1B3A6B,#2952A3)", color:"#fff", border:"1px solid rgba(255,255,255,0.1)", borderRadius:14, padding:"15px 0", fontSize:15, fontWeight:700, cursor:loading?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:loading?"none":"0 4px 18px rgba(27,58,107,0.4)", transition:"all 0.2s" }}>
           {loading ? <><Loader size={16} style={{animation:"spin 1s linear infinite"}}/> Generating Report…</> : <><Download size={16}/> Download Health Report (PDF)</>}
         </button>
 
@@ -106,7 +106,6 @@ export default function ExportReport() {
           Falls back to .txt if jsPDF is not installed.
         </p>
       </div>
-      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
     </div>
   )
 }

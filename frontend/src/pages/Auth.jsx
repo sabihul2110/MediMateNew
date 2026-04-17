@@ -31,13 +31,13 @@ export default function Auth() {
   const [bloodGroup,  setBloodGroup] = useState("")
 
   const S = {
-    page:  { minHeight:"100vh", display:"flex", backgroundColor:dark?"#0F172A":"#F4F6FA" },
-    panel: { width:440, flexShrink:0, backgroundColor:dark?"#1E293B":"#fff", display:"flex", flexDirection:"column", padding:"40px 36px", justifyContent:"center", boxShadow:"2px 0 20px rgba(27,58,107,0.08)", overflowY:"auto" },
-    input: { width:"100%", backgroundColor:dark?"#0F172A":"#F4F6FA", border:`1px solid ${dark?"#2D3F5A":"#E5E9F2"}`, borderRadius:12, padding:"11px 14px", fontSize:14, color:dark?"#F1F5F9":"#1A1A2E", outline:"none", fontFamily:"DM Sans,sans-serif" },
-    label: { fontSize:11, fontWeight:600, color:"#94A3B8", textTransform:"uppercase", letterSpacing:"0.1em", display:"block", marginBottom:6 },
-    tab:   a => ({ flex:1, padding:"10px 0", border:0, borderRadius:10, fontWeight:600, fontSize:14, cursor:"pointer", backgroundColor:a?"#1B3A6B":"transparent", color:a?"#fff":dark?"#94A3B8":"#64748B" }),
-    btn:   { width:"100%", background:"#1B3A6B", color:"#fff", border:0, borderRadius:999, padding:"13px 0", fontSize:15, fontWeight:700, cursor:"pointer", marginTop:8, display:"flex", alignItems:"center", justifyContent:"center", gap:8 },
-    seg:   (a) => ({ flex:1, padding:"9px 4px", borderRadius:10, border:`1.5px solid ${a?"#1B3A6B":dark?"#2D3F5A":"#E5E9F2"}`, backgroundColor:a?(dark?"#1E3A5F":"#EEF2FF"):"transparent", color:a?(dark?"#60A5FA":"#1B3A6B"):dark?"#94A3B8":"#64748B", fontSize:13, fontWeight:600, cursor:"pointer" }),
+    page:  { minHeight:"100vh", display:"flex", background:dark?"#060D1A":"#F0F4FF" },
+    panel: { width:460, flexShrink:0, background:dark?"rgba(255,255,255,0.03)":"rgba(255,255,255,0.85)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", display:"flex", flexDirection:"column", padding:"44px 40px", justifyContent:"center", borderRight:`1px solid ${dark?"rgba(255,255,255,0.05)":"rgba(27,58,107,0.08)"}`, overflowY:"auto" },
+    input: { width:"100%", background:dark?"rgba(255,255,255,0.04)":"rgba(27,58,107,0.04)", border:`1px solid ${dark?"rgba(255,255,255,0.07)":"rgba(27,58,107,0.1)"}`, borderRadius:14, padding:"12px 16px", fontSize:14, color:dark?"#F1F5F9":"#1A1A2E", outline:"none", fontFamily:"'DM Sans',sans-serif", transition:"border-color 0.2s, box-shadow 0.2s", boxSizing:"border-box" },
+    label: { fontSize:11, fontWeight:600, color:dark?"#64748B":"#8899B4", textTransform:"uppercase", letterSpacing:"0.1em", display:"block", marginBottom:6 },
+    tab:   a => ({ flex:1, padding:"11px 0", border:0, borderRadius:12, fontWeight:700, fontSize:14, cursor:"pointer", background:a?"linear-gradient(135deg,#1B3A6B,#2952A3)":"transparent", color:a?"#fff":dark?"#64748B":"#8899B4", boxShadow:a?"0 4px 14px rgba(27,58,107,0.35)":"none", transition:"all 0.2s" }),
+    btn:   { width:"100%", background:"linear-gradient(135deg,#1B3A6B,#2952A3)", color:"#fff", border:"1px solid rgba(255,255,255,0.1)", borderRadius:999, padding:"14px 0", fontSize:15, fontWeight:700, cursor:"pointer", marginTop:8, display:"flex", alignItems:"center", justifyContent:"center", gap:8, boxShadow:"0 4px 18px rgba(27,58,107,0.4)", transition:"all 0.2s" },
+    seg:   (a) => ({ flex:1, padding:"10px 4px", borderRadius:12, border:`1.5px solid ${a?"#1B3A6B":dark?"rgba(255,255,255,0.07)":"rgba(27,58,107,0.1)"}`, background:a?(dark?"rgba(96,165,250,0.15)":"rgba(27,58,107,0.08)"):"transparent", color:a?(dark?"#60A5FA":"#1B3A6B"):dark?"#64748B":"#8899B4", fontSize:13, fontWeight:600, cursor:"pointer", transition:"all 0.15s" }),
   }
 
   const handleLogin = async () => {
@@ -97,7 +97,7 @@ export default function Auth() {
         </div>
 
         {/* Tabs */}
-        <div style={{ display:"flex", backgroundColor:dark?"#0F172A":"#F4F6FA", borderRadius:12, padding:4, marginBottom:24 }}>
+        <div style={{ display:"flex", background:dark?"rgba(255,255,255,0.04)":"rgba(27,58,107,0.04)", borderRadius:14, padding:4, marginBottom:24, border:`1px solid ${dark?"rgba(255,255,255,0.05)":"rgba(27,58,107,0.06)"}` }}>
           <button style={S.tab(tab==="login")}  onClick={()=>{setTab("login");setStep(1);setError("")}}>Log In</button>
           <button style={S.tab(tab==="signup")} onClick={()=>{setTab("signup");setStep(1);setError("")}}>Sign Up</button>
         </div>
@@ -230,7 +230,7 @@ export default function Auth() {
       </div>
 
       {/* Right branding panel */}
-      <div style={{ flex:1, background:"linear-gradient(145deg,#1B3A6B 0%,#2952A3 50%,#1B3A6B 100%)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:48, position:"relative", overflow:"hidden" }}>
+      <div style={{ flex:1, background:"linear-gradient(145deg,#0D2147 0%,#1B3A6B 40%,#2952A3 70%,#1e4d8c 100%)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:48, position:"relative", overflow:"hidden" }}>
         {[[300,-80,-80,0.08],[200,"auto",-60,0.06],[150,80,80,0.1]].map(([size,right,top,op],i)=>(
           <div key={i} style={{ position:"absolute", width:size, height:size, borderRadius:"50%", background:`rgba(255,255,255,${op})`, right, top, pointerEvents:"none" }}/>
         ))}

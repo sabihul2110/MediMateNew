@@ -22,6 +22,8 @@ export const getDiseaseProfile  = name     => api.get(`/api/diseases/${encodeURI
 export const getAllSymptoms      = ()             => api.get("/api/symptoms/")
 export const searchSymptoms     = q              => api.get(`/api/symptoms/search?q=${q}`)
 export const matchSymptoms      = (symptoms, top_n=10) => api.post("/api/symptoms/match", { symptoms, top_n })
+export const analyzeSymptoms    = (text, tags, severity, duration, top_n=8) =>
+  api.post("/api/symptoms/analyze", { text, tags, severity, duration, top_n })
 
 // ── BMI ──────────────────────────────────────────────────────
 export const calculateBMI       = (height_cm, weight_kg) => api.post("/api/bmi/calculate", { height_cm, weight_kg })

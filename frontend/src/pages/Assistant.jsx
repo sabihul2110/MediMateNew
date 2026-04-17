@@ -14,10 +14,9 @@ const SUGGESTIONS = [
 ]
 
 function StructuredCard({ data, dark, onSuggestedClick }) {
-  const border   = dark?"#2D3F5A":"#E5E9F2"
-  const surface2 = dark?"#0F172A":"#F4F6FA"
-  const textMain = dark?"#F1F5F9":"#1A1A2E"
-  const textMute = dark?"#94A3B8":"#64748B"
+  const border   = dark ? "rgba(255,255,255,0.07)" : "rgba(27,58,107,0.1)"
+  const textMain = dark ? "#F1F5F9" : "#1A1A2E"
+  const textMute = dark ? "#64748B" : "#8899B4"
   const s = data.sections
 
   if(!s) return null
@@ -134,7 +133,7 @@ function MsgBubble({ msg, dark, onSuggestedClick }) {
         </div>
       )}
       <div style={{ maxWidth:"75%", display:"flex", flexDirection:"column", gap:6 }}>
-        <div style={{ backgroundColor:isUser?(dark?"#3B82F6":"#1B3A6B"):(dark?"#1E293B":"#fff"), color:isUser?"#fff":textMain, borderRadius:isUser?"18px 18px 4px 18px":"18px 18px 18px 4px", padding:"12px 16px", fontSize:14, lineHeight:1.6, boxShadow:"0 2px 8px rgba(27,58,107,0.08)" }}>
+        <div style={{ backgroundColor:isUser?(dark?"#3B82F6":"#1B3A6B"):(dark?"rgba(255,255,255,0.05)":"rgba(255,255,255,0.9)"), color:isUser?"#fff":textMain, borderRadius:isUser?"18px 18px 4px 18px":"18px 18px 18px 4px", padding:"12px 16px", fontSize:14, lineHeight:1.6, boxShadow:"0 2px 12px rgba(0,0,0,0.06)", backdropFilter:isUser?"none":"blur(12px)", border:isUser?"none":`1px solid ${dark?"rgba(255,255,255,0.07)":"rgba(27,58,107,0.08)"}` }}>
           {msg.content}
         </div>
         {msg.data && <StructuredCard data={msg.data} dark={dark} onSuggestedClick={onSuggestedClick}/>}
@@ -190,13 +189,24 @@ export default function Assistant() {
     if(!loading) send(q)
   }
 
-  const surface = dark?"#1E293B":"#fff"
-  const border  = dark?"#2D3F5A":"#E5E9F2"
-  const textMain= dark?"#F1F5F9":"#1A1A2E"
-  const textMute= dark?"#94A3B8":"#64748B"
+  const glass    = dark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.8)"
+  const border   = dark ? "rgba(255,255,255,0.07)" : "rgba(27,58,107,0.1)"
+  const textMain = dark ? "#F1F5F9" : "#1A1A2E"
+  const textMute = dark ? "#64748B" : "#8899B4"
+  const accent   = dark ? "#60A5FA" : "#1B3A6B"
 
   return (
-    <div style={{ maxWidth:820, margin:"0 auto", height:"calc(100vh - 56px - 48px)", display:"flex", flexDirection:"column" }}>
+    <div style={{ maxWidth:820, margin:"0 auto", height:"calc(100vh - 60px - 56px)", display:"flex", flexDirection:"column" }}>
+      {/* Page header */}
+      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
+        <div style={{ width:40, height:40, borderRadius:12, background:"linear-gradient(135deg,#1B3A6B,#2952A3)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 14px rgba(27,58,107,0.35)" }}>
+          <Bot size={18} color="#fff"/>
+        </div>
+        <div>
+          <h1 style={{ fontSize:18, fontWeight:700, color:textMain, margin:0 }}>AI Health Assistant</h1>
+          <p style={{ fontSize:11.5, color:textMute, margin:0 }}>Powered by clinical data · Not a final diagnosis</p>
+        </div>
+      </div>
       {messages.length===1&&(
         <div style={{ marginBottom:14 }}>
           <p style={{ fontSize:12, color:textMute, marginBottom:8 }}>Try asking:</p>
@@ -227,12 +237,12 @@ export default function Assistant() {
         <div ref={bottomRef}/>
       </div>
 
-      <div style={{ backgroundColor:surface, borderRadius:16, boxShadow:"0 2px 12px rgba(27,58,107,0.08)", padding:"12px 16px", display:"flex", alignItems:"center", gap:10, marginTop:12, border:`1px solid ${border}` }}>
+      <div style={{ background:glass, backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderRadius:18, boxShadow:"0 4px 24px rgba(0,0,0,0.06)", padding:"12px 16px", display:"flex", alignItems:"center", gap:10, marginTop:12, border:`1px solid ${border}` }}>
         <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()}
           placeholder="Describe your symptoms or ask about any disease..."
           style={{ flex:1, background:"none", border:0, outline:"none", fontSize:14, color:textMain, fontFamily:"DM Sans,sans-serif" }}/>
         <button style={{ background:"none", border:0, cursor:"pointer", color:textMute, padding:4, display:"flex" }}><Mic size={18}/></button>
-        <button onClick={()=>send()} disabled={!input.trim()||loading} style={{ width:36, height:36, borderRadius:"50%", backgroundColor:input.trim()?(dark?"#3B82F6":"#1B3A6B"):(dark?"#2D3F5A":"#E5E9F2"), border:0, display:"flex", alignItems:"center", justifyContent:"center", cursor:input.trim()?"pointer":"default", transition:"all 0.15s" }}>
+        <button onClick={()=>send()} disabled={!input.trim()||loading} style={{ width:38, height:38, borderRadius:"50%", background:input.trim()?"linear-gradient(135deg,#1B3A6B,#2952A3)":(dark?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.05)"), border:0, display:"flex", alignItems:"center", justifyContent:"center", cursor:input.trim()?"pointer":"default", transition:"all 0.15s", boxShadow:input.trim()?"0 4px 14px rgba(27,58,107,0.3)":"none" }}>
           <Send size={15} color={input.trim()?"#fff":textMute}/>
         </button>
       </div>
