@@ -5,7 +5,9 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
 from database import users_col, get_db
-from auth import hash_password, verify_password, create_token, get_current_user
+from auth import hash_password, verify_password, create_token, create_refresh_token, get_current_user
+from jose import JWTError, jwt
+from config import JWT_SECRET, JWT_ALGORITHM
 
 router = APIRouter()
 
@@ -55,8 +57,9 @@ async def signup(body: SignupRequest):
         profile_data["updated_at"] = datetime.now(timezone.utc).isoformat()
         await get_db()["profiles"].update_one({"email": body.email.lower()}, {"$set": profile_data}, upsert=True)
 
-    token = create_token({"sub": doc["email"]})
-    return {"token": token, "user": {"id": str(result.inserted_id), "name": doc["name"], "email": doc["email"], "avatar": doc["avatar"]}}
+    token         = create_token({"sub": doc["email"]})
+    refresh_token = create_refresh_token({"sub": doc["email"]})
+    return {"token": token, "refresh_token": refresh_token, "user": {"id": str(result.inserted_id), "name": doc["name"], "email": doc["email"], "avatar": doc["avatar"]}}
 
 @router.post("/login")
 async def login(body: LoginRequest):
@@ -64,8 +67,9 @@ async def login(body: LoginRequest):
     user = await col.find_one({"email": body.email.lower().strip()})
     if not user or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password.")
-    token = create_token({"sub": user["email"]})
-    return {"token": token, "user": {"id": str(user["_id"]), "name": user["name"], "email": user["email"], "avatar": user.get("avatar", user["name"][0].upper())}}
+    token         = create_token({"sub": user["email"]})
+    refresh_token = create_refresh_token({"sub": user["email"]})
+    return {"token": token, "refresh_token": refresh_token, "user": {"id": str(user["_id"]), "name": user["name"], "email": user["email"], "avatar": user.get("avatar", user["name"][0].upper())}}
 
 @router.get("/me")
 async def me(current_user=Depends(get_current_user)):
@@ -79,3 +83,21 @@ async def change_password(body: ChangePasswordRequest, user=Depends(get_current_
         raise HTTPException(status_code=400, detail="Current password is incorrect.")
     await col.update_one({"email": user["email"]}, {"$set": {"password_hash": hash_password(body.new_password)}})
     return {"message": "Password changed successfully."}
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+@router.post("/refresh")
+async def refresh(body: RefreshRequest):
+    try:
+        payload = jwt.decode(body.refresh_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+        email = payload.get("sub")
+        if not email:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Expired or invalid refresh token")
+    token = create_token({"sub": email})
+    return {"token": token}

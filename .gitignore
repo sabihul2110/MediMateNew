@@ -10,6 +10,13 @@ __pycache__/
 # node
 node_modules/
 
+graphify-out/
+
 # build
 dist/
-build/
+
+
+
+TEST.txt
+
+PROJECT_CONTEXT.md

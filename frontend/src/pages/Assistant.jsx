@@ -161,6 +161,26 @@ export default function Assistant() {
   const [input,   setInput]   = useState("")
   const [loading, setLoading] = useState(false)
 
+  const [listening, setListening] = useState(false)
+
+  const handleMic = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) { alert("Speech recognition is not supported in this browser."); return }
+    if (listening) return
+    const recognition = new SR()
+    recognition.lang = "en-IN"
+    recognition.interimResults = false
+    recognition.maxAlternatives = 1
+    recognition.onstart  = () => setListening(true)
+    recognition.onend    = () => setListening(false)
+    recognition.onerror  = () => setListening(false)
+    recognition.onresult = (e) => {
+      const transcript = e.results[0][0].transcript
+      setInput(transcript)
+    }
+    recognition.start()
+  }
+
   useEffect(()=>{
     const q = searchParams.get("q")
     if(q) setTimeout(()=>send(q), 300)
@@ -241,7 +261,7 @@ export default function Assistant() {
         <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()}
           placeholder="Describe your symptoms or ask about any disease..."
           style={{ flex:1, background:"none", border:0, outline:"none", fontSize:14, color:textMain, fontFamily:"DM Sans,sans-serif" }}/>
-        <button style={{ background:"none", border:0, cursor:"pointer", color:textMute, padding:4, display:"flex" }}><Mic size={18}/></button>
+        <button onClick={handleMic} style={{ background:"none", border:0, cursor:"pointer", color:listening ? "#DC2626" : textMute, padding:4, display:"flex", transition:"color 0.2s" }}><Mic size={18}/></button>
         <button onClick={()=>send()} disabled={!input.trim()||loading} style={{ width:38, height:38, borderRadius:"50%", background:input.trim()?"linear-gradient(135deg,#1B3A6B,#2952A3)":(dark?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.05)"), border:0, display:"flex", alignItems:"center", justifyContent:"center", cursor:input.trim()?"pointer":"default", transition:"all 0.15s", boxShadow:input.trim()?"0 4px 14px rgba(27,58,107,0.3)":"none" }}>
           <Send size={15} color={input.trim()?"#fff":textMute}/>
         </button>

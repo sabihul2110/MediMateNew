@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from config import APP_TITLE, APP_VERSION, CORS_ORIGINS
-from database import ping
+from database import ping, create_indexes
 from routers import diseases, symptoms, bmi, vitals, chat
 from routers.auth_router      import router as auth_router
 from routers.health_logs      import router as logs_router
@@ -14,7 +14,9 @@ from routers.mediscan_logs    import router as mediscan_logs_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await ping(); yield
+    await ping()
+    await create_indexes()
+    yield
 
 app = FastAPI(title=APP_TITLE, version=APP_VERSION, lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS,

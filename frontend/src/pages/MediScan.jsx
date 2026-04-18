@@ -2,14 +2,25 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useApp } from "../context/ThemeContext"
-import { matchSymptoms, getDiseaseProfile, saveMediScan } from "../api/index"
-import { Scan, ChevronDown, ChevronUp, MessageSquare, UserCheck, AlertTriangle, X, CheckCircle, Zap, Activity, Shield } from "lucide-react"
+import { analyzeSymptoms, getDiseaseProfile, saveMediScan } from "../api/index"
+import { Scan, ChevronDown, ChevronUp, MessageSquare, UserCheck, AlertTriangle, X, CheckCircle, Activity } from "lucide-react"
 
-const QUICK_TAGS = ["Headache","Fever","Cough","Fatigue","Nausea","Vomiting","Dizziness","Chest Pain","Sore Throat","Body Ache","Breathlessness","Rash","Diarrhea","Chills","Weakness"]
-const DURATIONS  = ["Today","1–3 Days","3–7 Days","1–2 Weeks","2+ Weeks"]
-const CONF_COLOR = c => c >= 70 ? "#22C55E" : c >= 40 ? "#F59E0B" : "#EF4444"
-const CONF_LABEL = c => c >= 70 ? "High Match" : c >= 40 ? "Possible" : "Rule Out"
-const CONF_BG    = c => c >= 70 ? "rgba(34,197,94,0.12)" : c >= 40 ? "rgba(245,158,11,0.12)" : "rgba(239,68,68,0.12)"
+// ── Tags now match CSV symptom names exactly ─────────────────────
+const QUICK_TAGS = [
+  "Chest Pain","Breathlessness","Palpitations",        // cardiac
+  "Fever","Chills","Sweating",                          // infectious
+  "Headache","Dizziness","Fatigue",                     // general
+  "Nausea","Vomiting","Loss of Appetite",               // GI
+  "Cough","Sore Throat","Runny Nose",                   // respiratory
+  "Joint Pain","Back Pain","Weakness",                  // musculo
+  "Rash","Yellowing of Skin","Blurred Vision",          // specific
+  "Frequent Urination","Excessive Thirst","Weight Loss" // metabolic
+]
+
+const DURATIONS = ["Today","1–3 Days","3–7 Days","1–2 Weeks","2+ Weeks"]
+const CONF_COLOR = c => c >= 60 ? "#22C55E" : c >= 30 ? "#F59E0B" : "#EF4444"
+const CONF_LABEL = c => c >= 60 ? "High Match" : c >= 30 ? "Possible Match" : "Low Match"
+const CONF_BG    = c => c >= 60 ? "rgba(34,197,94,0.12)" : c >= 30 ? "rgba(245,158,11,0.12)" : "rgba(239,68,68,0.12)"
 
 export default function MediScan() {
   const { theme } = useApp()
@@ -27,42 +38,62 @@ export default function MediScan() {
   const [profLoad, setProfLoad] = useState({})
   const [error,    setError]    = useState("")
   const [saved,    setSaved]    = useState(false)
+  const [aiSummary, setAiSummary] = useState(null)
 
-  // Design tokens
-  const glass      = dark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.8)"
-  const glassDeep  = dark ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.5)"
-  const border     = dark ? "rgba(255,255,255,0.07)" : "rgba(27,58,107,0.1)"
-  const inputBg    = dark ? "rgba(255,255,255,0.04)" : "rgba(27,58,107,0.04)"
-  const textMain   = dark ? "#F1F5F9" : "#1A1A2E"
-  const textMute   = dark ? "#64748B" : "#8899B4"
-  const accent     = dark ? "#60A5FA" : "#1B3A6B"
+  const glass     = dark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.8)"
+  const border    = dark ? "rgba(255,255,255,0.07)" : "rgba(27,58,107,0.1)"
+  const inputBg   = dark ? "rgba(255,255,255,0.04)" : "rgba(27,58,107,0.04)"
+  const textMain  = dark ? "#F1F5F9" : "#1A1A2E"
+  const textMute  = dark ? "#64748B" : "#8899B4"
+  const accent    = dark ? "#60A5FA" : "#1B3A6B"
 
   const toggleTag = t => setTags(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
 
-  const STOPWORDS = new Set(["a","an","the","and","or","of","in","is","it","i","have","has","for","with","my","feel","feeling","some","since","days","been","very","bit","also","just","like","really","much","after","before","when","then","that","this","from","about"])
-  const buildSymptoms = () => {
-    const tagPhrases = tags.map(t => t.toLowerCase())
-    const fromText   = text.toLowerCase().split(/[\s,;.]+/).filter(w => w.length > 2 && !STOPWORDS.has(w))
-    return [...new Set([...tagPhrases, ...fromText])]
-  }
-
   const analyze = async () => {
-    const symptoms = buildSymptoms()
-    if (!symptoms.length) { setError("Please describe your symptoms or select at least one tag."); return }
-    setError(""); setLoading(true); setResults(null); setExpanded(null); setSaved(false)
+    if (!text.trim() && tags.length === 0) {
+      setError("Please describe your symptoms or select at least one tag.")
+      return
+    }
+    setError(""); setLoading(true); setResults(null)
+    setExpanded(null); setSaved(false); setAiSummary(null)
+
     try {
-      const r = await matchSymptoms(symptoms, 8)
-      setResults(r.data)
+      // ── Use /analyze endpoint — sends full text + tags, backend handles everything ──
+      const r = await analyzeSymptoms({
+        text:     text.trim(),
+        tags:     tags,
+        severity: severity,
+        duration: duration,
+        top_n:    8,
+      })
+
+      const data = r.data
+      setResults(data)
+      setAiSummary(data.ai_summary || null)
+
+      // Pre-populate profiles from backend response
+      if (data.profiles) {
+        setProfiles(data.profiles)
+      }
+
       await saveMediScan({
         symptoms_text:  text,
         symptom_tags:   tags,
         severity, duration,
-        top_conditions: r.data.results?.slice(0, 3).map(x => ({ disease: x.disease, matched_count: x.matched_count, confidence: x.confidence })) || [],
-        top_match:      r.data.results?.[0]?.disease || null,
+        top_conditions: data.results?.slice(0, 3).map(x => ({
+          disease: x.disease,
+          matched_count: x.matched_count,
+          confidence: x.confidence,
+        })) || [],
+        top_match: data.results?.[0]?.disease || null,
       }).catch(() => {})
       setSaved(true)
-    } catch { setError("Could not reach the server. Make sure the backend is running.") }
-    finally { setLoading(false) }
+
+    } catch (e) {
+      setError("Could not reach the server. Make sure the backend is running.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const toggleExpand = async disease => {
@@ -70,12 +101,17 @@ export default function MediScan() {
     setExpanded(disease)
     if (!profiles[disease]) {
       setProfLoad(p => ({ ...p, [disease]: true }))
-      try { const r = await getDiseaseProfile(disease); setProfiles(p => ({ ...p, [disease]: r.data })) } catch {}
+      try {
+        const r = await getDiseaseProfile(disease)
+        setProfiles(p => ({ ...p, [disease]: r.data }))
+      } catch {}
       finally { setProfLoad(p => ({ ...p, [disease]: false })) }
     }
   }
 
-  const askAI = disease => navigate(`/assistant?q=${encodeURIComponent(`Tell me about ${disease}: symptoms, treatment, medicines, dos and don'ts.`)}`)
+  const askAI = disease => navigate(
+    `/assistant?q=${encodeURIComponent(`Tell me about ${disease}: symptoms, treatment, medicines, dos and don'ts.`)}`
+  )
 
   const severityColor = s => s <= 3 ? "#22C55E" : s <= 6 ? "#F59E0B" : "#DC2626"
   const severityLabel = s => s <= 3 ? "Mild" : s <= 6 ? "Moderate" : "Severe"
@@ -110,17 +146,15 @@ export default function MediScan() {
         <div style={{
           background: glass, borderRadius: 22,
           backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
-          border: `1px solid ${border}`,
-          padding: "26px 24px",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.08)",
-          height: "fit-content",
+          border: `1px solid ${border}`, padding: "26px 24px",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.08)", height: "fit-content",
         }}>
           <label style={{ fontSize: 10.5, fontWeight: 700, color: textMute, textTransform: "uppercase", letterSpacing: "0.12em", display: "block", marginBottom: 10 }}>
             Describe Your Symptoms
           </label>
           <textarea
             value={text} onChange={e => setText(e.target.value)}
-            placeholder="e.g. I have a sharp pain in my upper abdomen after eating, with mild nausea..."
+            placeholder="e.g. chest pain, breathlessness, sweating — or use Quick Tags below"
             rows={4}
             style={{
               width: "100%", background: inputBg,
@@ -128,8 +162,7 @@ export default function MediScan() {
               padding: "13px 16px", fontSize: 13.5, color: textMain,
               outline: "none", resize: "vertical",
               fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6,
-              transition: "border-color 0.2s, box-shadow 0.2s",
-              boxSizing: "border-box",
+              transition: "border-color 0.2s, box-shadow 0.2s", boxSizing: "border-box",
             }}
             onFocus={e => { e.target.style.borderColor = dark ? "rgba(96,165,250,0.4)" : "rgba(27,58,107,0.3)"; e.target.style.boxShadow = "0 0 0 3px rgba(27,58,107,0.08)" }}
             onBlur={e => { e.target.style.borderColor = border; e.target.style.boxShadow = "none" }}
@@ -162,10 +195,8 @@ export default function MediScan() {
             <div>
               <label style={{ fontSize: 10.5, fontWeight: 700, color: textMute, textTransform: "uppercase", letterSpacing: "0.12em", display: "block", marginBottom: 8 }}>Duration</label>
               <select value={duration} onChange={e => setDuration(e.target.value)} style={{
-                width: "100%", background: inputBg,
-                border: `1px solid ${border}`, borderRadius: 12,
-                padding: "10px 14px", fontSize: 13, color: textMain,
-                outline: "none", cursor: "pointer", fontFamily: "inherit",
+                width: "100%", background: inputBg, border: `1px solid ${border}`, borderRadius: 12,
+                padding: "10px 14px", fontSize: 13, color: textMain, outline: "none", cursor: "pointer", fontFamily: "inherit",
               }}>
                 {DURATIONS.map(d => <option key={d}>{d}</option>)}
               </select>
@@ -184,7 +215,6 @@ export default function MediScan() {
             </div>
           </div>
 
-          {/* Severity indicator bar */}
           <div style={{ marginTop: 12, height: 4, borderRadius: 999, background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", overflow: "hidden" }}>
             <div style={{
               width: `${severity * 10}%`, height: "100%",
@@ -213,9 +243,7 @@ export default function MediScan() {
             onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)" }}
           >
             {loading ? (
-              <>
-                <Activity size={16} style={{ animation: "spin 1s linear infinite" }} /> Analyzing…
-              </>
+              <><Activity size={16} style={{ animation: "spin 1s linear infinite" }} /> Analyzing…</>
             ) : (
               <><Scan size={16} /> Analyze Symptoms</>
             )}
@@ -238,6 +266,25 @@ export default function MediScan() {
         {/* ═══ RESULTS PANEL ═══ */}
         {results && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+            {/* AI Summary card — shown when available */}
+            {aiSummary?.summary && (
+              <div style={{
+                background: dark ? "rgba(59,130,246,0.08)" : "rgba(27,58,107,0.05)",
+                borderRadius: 18, padding: "18px 22px",
+                border: `1px solid ${dark ? "rgba(96,165,250,0.2)" : "rgba(27,58,107,0.15)"}`,
+                backdropFilter: "blur(16px)",
+              }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: accent, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>🧠 AI Clinical Summary</p>
+                <p style={{ fontSize: 13.5, color: textMain, lineHeight: 1.65, margin: 0 }}>{aiSummary.summary}</p>
+                {aiSummary.severity_note && (
+                  <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 10, background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.25)" }}>
+                    <p style={{ fontSize: 12.5, color: "#D97706", margin: 0, fontWeight: 600 }}>⚠️ {aiSummary.severity_note}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Results header */}
             <div style={{
               display: "flex", justifyContent: "space-between", alignItems: "center",
@@ -248,10 +295,8 @@ export default function MediScan() {
                 <h2 style={{ fontSize: 15, fontWeight: 700, color: textMain, margin: 0 }}>Possible Conditions</h2>
                 <p style={{ fontSize: 11.5, color: textMute, margin: "2px 0 0" }}>{results.total_matches} conditions matched from symptom analysis</p>
               </div>
-              <div style={{ display: "flex", items: "center", gap: 6 }}>
-                <div style={{ padding: "4px 12px", borderRadius: 999, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)" }}>
-                  <span style={{ fontSize: 11, color: "#16A34A", fontWeight: 700 }}>AI Powered</span>
-                </div>
+              <div style={{ padding: "4px 12px", borderRadius: 999, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)" }}>
+                <span style={{ fontSize: 11, color: "#16A34A", fontWeight: 700 }}>AI Powered</span>
               </div>
             </div>
 
@@ -266,14 +311,12 @@ export default function MediScan() {
 
               return (
                 <div key={item.disease} style={{
-                  background: glass,
-                  backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
+                  background: glass, backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
                   borderRadius: 20, overflow: "hidden",
                   border: `1.5px solid ${isPrimary ? (dark ? "rgba(96,165,250,0.3)" : "rgba(27,58,107,0.25)") : border}`,
                   boxShadow: isPrimary ? `0 8px 32px ${dark ? "rgba(27,58,107,0.25)" : "rgba(27,58,107,0.1)"}` : "0 2px 12px rgba(0,0,0,0.04)",
                   transition: "all 0.2s",
                 }}>
-                  {/* Card header */}
                   <div style={{ padding: "18px 22px" }}>
                     {isPrimary && (
                       <div style={{ marginBottom: 10 }}>
@@ -282,9 +325,7 @@ export default function MediScan() {
                           background: dark ? "rgba(96,165,250,0.15)" : "rgba(27,58,107,0.1)",
                           color: accent, padding: "3px 10px", borderRadius: 999,
                           border: `1px solid ${dark ? "rgba(96,165,250,0.2)" : "rgba(27,58,107,0.15)"}`,
-                        }}>
-                          ★ PRIMARY MATCH
-                        </span>
+                        }}>★ PRIMARY MATCH</span>
                       </div>
                     )}
 
@@ -292,7 +333,6 @@ export default function MediScan() {
                       <div style={{ flex: 1 }}>
                         <h3 style={{ fontSize: 17, fontWeight: 800, color: textMain, margin: "0 0 10px", letterSpacing: "-0.3px" }}>{item.disease}</h3>
 
-                        {/* Confidence visualization */}
                         <div style={{ marginBottom: 8 }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                             <span style={{ fontSize: 11.5, color: textMute }}>Symptom overlap confidence</span>
@@ -315,16 +355,13 @@ export default function MediScan() {
                         </p>
                       </div>
 
-                      {/* Action buttons */}
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
                         <button onClick={() => askAI(item.disease)} style={{
                           display: "flex", alignItems: "center", gap: 6,
-                          padding: "8px 16px", borderRadius: 10,
-                          border: "none",
+                          padding: "8px 16px", borderRadius: 10, border: "none",
                           background: dark ? "rgba(96,165,250,0.15)" : "rgba(27,58,107,0.08)",
                           color: accent, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
-                          transition: "all 0.2s",
-                          whiteSpace: "nowrap",
+                          transition: "all 0.2s", whiteSpace: "nowrap",
                         }}
                           onMouseEnter={e => e.currentTarget.style.background = dark ? "rgba(96,165,250,0.25)" : "rgba(27,58,107,0.15)"}
                           onMouseLeave={e => e.currentTarget.style.background = dark ? "rgba(96,165,250,0.15)" : "rgba(27,58,107,0.08)"}
@@ -336,8 +373,7 @@ export default function MediScan() {
                           padding: "8px 16px", borderRadius: 10,
                           border: `1px solid ${border}`, background: "transparent",
                           color: textMute, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
-                          transition: "all 0.2s",
-                          whiteSpace: "nowrap",
+                          transition: "all 0.2s", whiteSpace: "nowrap",
                         }}
                           onMouseEnter={e => e.currentTarget.style.color = textMain}
                           onMouseLeave={e => e.currentTarget.style.color = textMute}
@@ -349,13 +385,8 @@ export default function MediScan() {
                     </div>
                   </div>
 
-                  {/* Expanded details */}
                   {isExp && (
-                    <div style={{
-                      borderTop: `1px solid ${border}`,
-                      padding: "20px 22px",
-                      background: dark ? "rgba(0,0,0,0.2)" : "rgba(27,58,107,0.02)",
-                    }}>
+                    <div style={{ borderTop: `1px solid ${border}`, padding: "20px 22px", background: dark ? "rgba(0,0,0,0.2)" : "rgba(27,58,107,0.02)" }}>
                       {pLoad ? (
                         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
                           <Activity size={15} color={textMute} />
@@ -363,12 +394,11 @@ export default function MediScan() {
                         </div>
                       ) : prof ? (
                         <div>
-                          {/* 3-column info grid */}
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
                             {[
-                              { title: "Symptoms", icon: "🩺", color: "#3B82F6", bg: "rgba(59,130,246,0.08)", items: prof.symptoms?.slice(0, 5) },
+                              { title: "Symptoms",       icon: "🩺", color: "#3B82F6", bg: "rgba(59,130,246,0.08)",  items: prof.symptoms?.slice(0, 5) },
                               { title: "Medicines (OTC)", icon: "💊", color: "#8B5CF6", bg: "rgba(139,92,246,0.08)", items: prof.medicines?.slice(0, 4) },
-                              { title: "Precautions", icon: "🛡️", color: "#22C55E", bg: "rgba(34,197,94,0.08)", items: prof.precautions?.slice(0, 4) },
+                              { title: "Precautions",    icon: "🛡️", color: "#22C55E", bg: "rgba(34,197,94,0.08)",  items: prof.precautions?.slice(0, 4) },
                             ].map(({ title, icon, color, bg, items }) => (
                               <div key={title} style={{ background: bg, borderRadius: 14, padding: "14px 16px", border: `1px solid ${color}18` }}>
                                 <p style={{ fontSize: 11, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, display: "flex", alignItems: "center", gap: 5 }}>
@@ -383,13 +413,8 @@ export default function MediScan() {
                               </div>
                             ))}
                           </div>
-
                           {prof.risk_factors?.length > 0 && (
-                            <div style={{
-                              padding: "12px 16px", borderRadius: 12,
-                              background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)",
-                              display: "flex", gap: 10, alignItems: "flex-start",
-                            }}>
+                            <div style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", display: "flex", gap: 10, alignItems: "flex-start" }}>
                               <span style={{ fontSize: 14 }}>⚠️</span>
                               <div>
                                 <p style={{ fontSize: 11, fontWeight: 700, color: "#D97706", marginBottom: 4 }}>Risk Factors</p>
@@ -442,8 +467,7 @@ export default function MediScan() {
                   color: "#fff", border: "none", borderRadius: 999, padding: "11px 0",
                   fontSize: 13, fontWeight: 700, cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-                  boxShadow: "0 4px 16px rgba(220,38,38,0.35)",
-                  transition: "all 0.2s",
+                  boxShadow: "0 4px 16px rgba(220,38,38,0.35)", transition: "all 0.2s",
                 }}
                   onMouseEnter={e => e.currentTarget.style.transform = "translateY(-1px)"}
                   onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}

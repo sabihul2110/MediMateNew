@@ -23,6 +23,12 @@ def create_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     payload.update({"exp": expire})
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
+def create_refresh_token(data: dict) -> str:
+    payload = data.copy()
+    expire  = datetime.now(timezone.utc) + timedelta(days=30)
+    payload.update({"exp": expire, "type": "refresh"})
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
 def decode_token(token: str) -> dict:
     try:
         return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])

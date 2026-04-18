@@ -31,11 +31,14 @@ export function NotificationProvider({ children }) {
   // Auto-generate daily reminder if none today
   useEffect(() => {
     const today = new Date().toDateString()
+    const lastReminder = localStorage.getItem("mm_last_reminder")
+    if (lastReminder === today) return
     const hasTodayReminder = notifs.some(n => n.type==="reminder" && new Date(n.timestamp).toDateString()===today)
     if (!hasTodayReminder) {
       const hour = new Date().getHours()
       if (hour >= 8 && hour < 22) {
         add({ type:"reminder", title:"Daily Health Check", message:"Log your vitals to keep your health score accurate.", icon:"❤️", link:"/tracking" })
+        localStorage.setItem("mm_last_reminder", today)
       }
     }
   }, [])

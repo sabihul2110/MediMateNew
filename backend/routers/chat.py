@@ -1,36 +1,44 @@
 # MediMate/backend/routers/chat.py
 #
-# Production-grade chat endpoint:
-#   smart_query() → { type, confident, data }
-#   confident=True   → shape CSV data, enrich with contextual advice
-#   confident=False  → call Gemini, merge with partial CSV data
-#   Gemini fails     → graceful fallback with retry-friendly message
+# Fallback priority:
+#   1. CSV datasets (smart_query — 12 files, now + semantic layer)
+#   2. Gemini (if confident=False or type=none)
+#   3. HF Inference API (if Gemini key missing OR Gemini fails)
+#   4. Graceful static fallback
 #
-# Setup:  .env → GEMINI_API_KEY=your_key_here
+# .env keys needed:
+#   GEMINI_API_KEY=...   (optional — for Gemini)
+#   HF_API_TOKEN=...     (optional — for HF fallback)
 
 import sys, os, re, json
+from datetime import datetime
+from bson import ObjectId
 
 def _strip_md(text: str) -> str:
-    """Remove markdown bold/italic so the frontend renders clean text."""
     return re.sub(r"\*{1,2}(.+?)\*{1,2}", r"\1", text) if text else text
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from dataset_loader import (
     smart_query, get_disease_profile, nlp_match_disease,
     search_medquad, get_diseases_by_symptoms, get_all_diseases,
 )
+from database import get_db
+from auth import get_current_user
 
 router = APIRouter()
 
-# ── Gemini config ─────────────────────────────────────────────────────────────
+# ── API keys ──────────────────────────────────────────────────────────────────
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+HF_API_TOKEN   = os.environ.get("HF_API_TOKEN", "")
+
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/"
     "models/gemini-2.0-flash:generateContent"
 )
+HF_MODEL_URL = "https://api-inference.huggingface.co/models/google/flan-t5-base"
 
 GEMINI_SYSTEM = """You are MediMate AI, a knowledgeable, empathetic, and precise medical health assistant.
 
@@ -64,7 +72,7 @@ CRITICAL INSTRUCTIONS:
 7. Only include JSON fields you have real data for — omit empty arrays."""
 
 
-# ── Contextual dos/donts by disease category ─────────────────────────────────
+# ── Contextual dos/donts ──────────────────────────────────────────────────────
 _CONDITION_ADVICE = {
     "respiratory": {
         "dos": [
@@ -130,7 +138,7 @@ _CONDITION_ADVICE = {
             "Practice stress reduction techniques",
         ],
         "donts": [
-            "Don't ignore sudden, severe headaches — they may need emergency evaluation",
+            "Don't ignore sudden, severe headaches — may need emergency evaluation",
             "Avoid prolonged screen time during acute symptoms",
             "Don't skip meals — blood sugar drops can worsen symptoms",
             "Avoid known triggers (specific foods, bright lights, etc.)",
@@ -180,7 +188,6 @@ _CONDITION_ADVICE = {
     },
 }
 
-# Disease → category mapping for contextual advice
 _DISEASE_CATEGORIES = {
     "common cold": "respiratory", "pneumonia": "respiratory", "bronchial asthma": "respiratory",
     "tuberculosis": "respiratory", "copd": "respiratory",
@@ -203,20 +210,19 @@ _DISEASE_CATEGORIES = {
 }
 
 def _get_contextual_advice(disease_name: str) -> dict:
-    """Return dos/donts appropriate for the disease category."""
     cat = _DISEASE_CATEGORIES.get(disease_name.strip().lower(), "default")
     return _CONDITION_ADVICE.get(cat, _CONDITION_ADVICE["default"])
 
 
+# ── Gemini call ───────────────────────────────────────────────────────────────
 async def _call_gemini(message: str, history: list) -> dict | None:
-    """Call Gemini API. Returns parsed dict or None on failure."""
     if not GEMINI_API_KEY:
         return None
     try:
         import httpx
 
         contents = []
-        for h in history[-8:]:  # Increased from 6 to 8 for better context
+        for h in history[-8:]:
             role = "user" if h["role"] == "user" else "model"
             contents.append({"role": role, "parts": [{"text": h["content"]}]})
         contents.append({"role": "user", "parts": [{"text": message}]})
@@ -238,43 +244,108 @@ async def _call_gemini(message: str, history: list) -> dict | None:
                 return None
 
             data = r.json()
-            text = data["candidates"][0]["content"]["parts"][0]["text"]
-
-            # Robust JSON extraction: handle markdown fences, partial JSON, etc.
-            text = text.strip()
-            # Remove markdown code fences
+            text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
             text = re.sub(r"```json\s*", "", text)
-            text = re.sub(r"\s*```", "", text)
-            text = text.strip()
+            text = re.sub(r"\s*```", "", text).strip()
 
             try:
                 return json.loads(text)
             except json.JSONDecodeError:
-                # Try to extract JSON from within the text
-                json_match = re.search(r'\{[\s\S]*\}', text)
-                if json_match:
+                match = re.search(r'\{[\s\S]*\}', text)
+                if match:
                     try:
-                        return json.loads(json_match.group())
+                        return json.loads(match.group())
                     except json.JSONDecodeError:
                         pass
-
-                # Last resort: return a minimal response using the raw text
-                print(f"[Gemini] JSON parse failed, using raw text fallback")
-                clean_text = _strip_md(text[:500])
+                clean = _strip_md(text[:500])
                 return {
-                    "reply": clean_text[:200],
-                    "sections": {"overview": clean_text},
-                    "disclaimer": "For informational purposes only. Consult a doctor for diagnosis.",
+                    "reply": clean[:200],
+                    "sections": {"overview": clean},
+                    "disclaimer": "For informational purposes only. Consult a doctor.",
                 }
-
     except Exception as e:
         print(f"[Gemini] Exception: {e}")
         return None
 
 
-# ── Shape CSV results into frontend response format ───────────────────────────
+# ── HF Inference API call ─────────────────────────────────────────────────────
+async def _call_hf(message: str) -> dict | None:
+    """
+    Calls google/flan-t5-base via HF Inference API.
+    Returns a response dict in the same shape as _call_gemini output.
+    Falls back to None if token missing or request fails.
+    """
+    if not HF_API_TOKEN:
+        return None
+    try:
+        import httpx
+
+        prompt = (
+            "You are a helpful medical assistant. "
+            "Answer clearly and concisely in 2-4 sentences. "
+            f"Question: {message}\nAnswer:"
+        )
+
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.post(
+                HF_MODEL_URL,
+                headers={"Authorization": f"Bearer {HF_API_TOKEN}"},
+                json={
+                    "inputs": prompt,
+                    "parameters": {
+                        "max_new_tokens": 200,
+                        "temperature": 0.3,
+                        "do_sample": False,
+                    },
+                },
+            )
+            if r.status_code == 503:
+                # Model loading — common on free tier cold start
+                print("[HF] Model loading (503). Will use static fallback.")
+                return None
+            if r.status_code != 200:
+                print(f"[HF] Error {r.status_code}: {r.text[:200]}")
+                return None
+
+            data = r.json()
+
+            # flan-t5 returns list of {"generated_text": "..."}
+            if isinstance(data, list) and data:
+                raw = data[0].get("generated_text", "")
+            elif isinstance(data, dict):
+                raw = data.get("generated_text", str(data))
+            else:
+                return None
+
+            # flan-t5 echoes the prompt — strip it
+            if "Answer:" in raw:
+                raw = raw.split("Answer:")[-1].strip()
+
+            raw = _strip_md(raw.strip())
+            if not raw:
+                return None
+
+            return {
+                "type":    "hf_answer",
+                "reply":   raw[:400],
+                "sections": {"overview": raw},
+                "disclaimer": (
+                    "AI-generated response. For informational purposes only. "
+                    "Consult a healthcare professional for diagnosis."
+                ),
+                "suggested_questions": [
+                    "When should I see a doctor?",
+                    "What medicines can help?",
+                    "Tell me more about this condition.",
+                ],
+            }
+    except Exception as e:
+        print(f"[HF] Exception: {e}")
+        return None
+
+
+# ── Shape CSV result ──────────────────────────────────────────────────────────
 def _shape(query_result: dict) -> dict:
-    """Convert smart_query() output → frontend response shape."""
     t, data = query_result["type"], query_result["data"]
 
     if t == "disease_profile":
@@ -285,16 +356,13 @@ def _shape(query_result: dict) -> dict:
             "reply": f"Here's what I found about {d['disease']}.",
             "disease": d["disease"],
             "sections": {
-                "overview": (
-                    d.get("description")
-                    or f"{d['disease']} is a medical condition identified in our clinical database."
-                ),
-                "symptoms": d.get("symptoms", [])[:8],
-                "medicines": d.get("medicines", [])[:6],
-                "precautions": d.get("precautions", [])[:5],
+                "overview":     d.get("description") or f"{d['disease']} is a medical condition identified in our clinical database.",
+                "symptoms":     d.get("symptoms", [])[:8],
+                "medicines":    d.get("medicines", [])[:6],
+                "precautions":  d.get("precautions", [])[:5],
                 "risk_factors": d.get("risk_factors", [])[:4],
-                "dos": advice["dos"],
-                "donts": advice["donts"],
+                "dos":          advice["dos"],
+                "donts":        advice["donts"],
             },
             "preliminary_assessment": {"possible_conditions": [d["disease"]]},
             "suggested_questions": [
@@ -306,13 +374,12 @@ def _shape(query_result: dict) -> dict:
         }
 
     if t in ("symptom_match", "nlp_match"):
-        top = data[:5]
-        conds = [r["disease"] for r in top]
+        top    = data[:5]
+        conds  = [r["disease"] for r in top]
         profile = get_disease_profile(top[0]["disease"]) if top else {}
         conf_txt = f"{top[0]['confidence']}% confidence" if top else ""
-        advice = _get_contextual_advice(top[0]["disease"]) if top else _CONDITION_ADVICE["default"]
+        advice   = _get_contextual_advice(top[0]["disease"]) if top else _CONDITION_ADVICE["default"]
 
-        # Build a richer overview
         overview = profile.get("description") or ""
         if not overview:
             overview = f"Top match: {top[0]['disease']}. {len(top)} possible conditions found."
@@ -320,62 +387,58 @@ def _shape(query_result: dict) -> dict:
             overview += f"\n\nOther possibilities include: {', '.join(conds[1:3])}."
 
         return {
-            "type": "symptom_analysis",
+            "type":  "symptom_analysis",
             "reply": f"Based on your symptoms, the most likely condition is {top[0]['disease']} ({conf_txt}).",
             "preliminary_assessment": {
                 "possible_conditions": conds,
                 "top_match": top[0]["disease"] if top else None,
             },
             "sections": {
-                "overview": overview,
-                "symptoms": profile.get("symptoms", [])[:8],
-                "medicines": profile.get("medicines", [])[:6],
-                "precautions": profile.get("precautions", [])[:5],
+                "overview":     overview,
+                "symptoms":     profile.get("symptoms", [])[:8],
+                "medicines":    profile.get("medicines", [])[:6],
+                "precautions":  profile.get("precautions", [])[:5],
                 "risk_factors": profile.get("risk_factors", [])[:4],
-                "dos": advice["dos"],
-                "donts": advice["donts"],
+                "dos":          advice["dos"],
+                "donts":        advice["donts"],
             },
             "suggested_questions": [
                 f"Tell me more about {conds[0]}.",
                 f"What medicines help with {conds[0]}?",
-                f"What are the key differences between {conds[0]} and {conds[1]}?" if len(conds) > 1 else "When should I see a doctor?",
+                (f"What are the key differences between {conds[0]} and {conds[1]}?"
+                 if len(conds) > 1 else "When should I see a doctor?"),
             ],
             "disclaimer": "For informational purposes only. Consult a doctor for diagnosis.",
         }
 
     if t == "medquad":
         best = data[0] if data else {}
-        ans = best.get("answer", "")
-
-        # Format long MedQuad answers: truncate intelligently at sentence boundaries
+        ans  = best.get("answer", "")
         if len(ans) > 400:
-            # Try to break at a sentence boundary
             sentences = re.split(r'(?<=[.!?])\s+', ans)
             truncated = ""
             for s in sentences:
                 if len(truncated) + len(s) > 350:
                     break
                 truncated += s + " "
-            reply = truncated.strip()
-            if len(reply) < len(ans):
-                reply += "…"
+            reply = truncated.strip() + ("…" if truncated.strip() else "")
         else:
             reply = ans
 
         return {
-            "type": "medical_qa",
+            "type":  "medical_qa",
             "reply": reply[:200] + ("…" if len(reply) > 200 else ""),
             "sections": {"overview": reply},
             "suggested_questions": [d["question"] for d in data[1:3]],
             "disclaimer": "For informational purposes only. Consult a doctor for diagnosis.",
         }
 
-    return {}  # "none" → triggers Gemini fallback
+    return {}
 
 
 def _fallback() -> dict:
     return {
-        "type": "fallback",
+        "type":  "fallback",
         "reply": (
             "I can help you with medical questions. "
             "Try describing your symptoms (e.g. 'I have fever and headache') "
@@ -391,59 +454,137 @@ def _fallback() -> dict:
     }
 
 
-# ── Main chat endpoint ────────────────────────────────────────────────────────
+def _str_id(doc: dict) -> dict:
+    if doc and "_id" in doc:
+        doc["_id"] = str(doc["_id"])
+    return doc
+
+
+# ── Models ────────────────────────────────────────────────────────────────────
 class ChatRequest(BaseModel):
     message: str
     history: list[dict] = []
 
+_GENERAL_Q_TRIGGERS = {
+    "difference", "between", "compare", "explain", "what is", "what are",
+    "how does", "how do", "why is", "why do", "define", "meaning of",
+    "types of", "causes of", "how to treat", "how to prevent",
+}
 
+def _is_general_question(msg: str) -> bool:
+    """Returns True if message looks like a knowledge question, not symptom report."""
+    m = msg.lower()
+    # Has question word but no first-person symptom language
+    has_q_trigger = any(t in m for t in _GENERAL_Q_TRIGGERS)
+    has_symptoms  = any(w in m for w in ["i have", "i feel", "i am", "my ", "been having"])
+    return has_q_trigger and not has_symptoms
+
+
+# ── POST /api/chat/message ────────────────────────────────────────────────────
 @router.post("/message")
-async def chat_message(body: ChatRequest):
+async def chat_message(body: ChatRequest, current_user: dict = Depends(get_current_user)):
     msg = body.message.strip()
     if not msg:
         return _fallback()
 
-    # Step 1: Try all 12 CSV datasets via smart_query
+    # Step 1: CSV datasets (now includes semantic blending in smart_query)
     csv_result = smart_query(msg)
-    shaped = _shape(csv_result)
+    shaped     = _shape(csv_result)
 
-    # Step 2: Decide if Gemini is needed
-    #   - explicit not-confident from router
-    #   - "none" type (no CSV match at all)
-    #   - medquad answer that's too short
-    use_gemini = (
+    # Decide whether external LLM needed
+    use_llm = (
         not csv_result["confident"]
         or csv_result["type"] == "none"
         or (
             csv_result["type"] == "medquad"
             and len(shaped.get("sections", {}).get("overview", "")) < 150
         )
+        or _is_general_question(msg)   # ← add this
     )
 
-    if use_gemini:
-        gemini_result = await _call_gemini(msg, body.history)
-        if gemini_result and "reply" in gemini_result:
-            gemini_result["reply"] = _strip_md(gemini_result["reply"])
-        if gemini_result:
-            gemini_result.setdefault(
+
+    final = None
+
+    if use_llm:
+        # Step 2: Try Gemini first
+        llm_result = await _call_gemini(msg, body.history)
+
+        # Step 3: Gemini failed or missing key → try HF
+        if not llm_result:
+            llm_result = await _call_hf(msg)
+
+        if llm_result:
+            if "reply" in llm_result:
+                llm_result["reply"] = _strip_md(llm_result["reply"])
+            llm_result.setdefault(
                 "disclaimer",
                 "For informational purposes only. Consult a doctor for diagnosis.",
             )
-            gemini_result.setdefault(
+            llm_result.setdefault(
                 "suggested_questions",
                 ["Tell me more.", "When should I see a doctor?", "What medicines can help?"],
             )
-            # Merge partial CSV data into Gemini result (don't waste it)
+            # Enrich LLM result with any CSV data it missed
             if shaped.get("sections"):
-                csv_sections = shaped["sections"]
-                g_sections = gemini_result.setdefault("sections", {})
+                csv_sec = shaped["sections"]
+                g_sec   = llm_result.setdefault("sections", {})
                 for field in ("symptoms", "medicines", "precautions", "risk_factors"):
-                    if csv_sections.get(field) and not g_sections.get(field):
-                        g_sections[field] = csv_sections[field]
-            return gemini_result
+                    if csv_sec.get(field) and not g_sec.get(field):
+                        g_sec[field] = csv_sec[field]
+            final = llm_result
+        else:
+            # All LLMs unavailable — use CSV shaped or static fallback
+            final = shaped if shaped else _fallback()
+    else:
+        final = shaped if shaped else _fallback()
 
-    # Step 3: Return CSV result (or graceful fallback if both failed)
-    if not shaped:
-        return _fallback()
+    # Persist to DB (non-fatal)
+    try:
+        await get_db()["chat_logs"].insert_one({
+            "user_id":    str(current_user["_id"]),
+            "query":      msg,
+            "reply":      final.get("reply", ""),
+            "type":       final.get("type", "unknown"),
+            "created_at": datetime.utcnow(),
+        })
+    except Exception as e:
+        print(f"[ChatLog] DB save failed (non-fatal): {e}")
 
-    return shaped
+    return final
+
+
+# ── GET /api/chat/history ─────────────────────────────────────────────────────
+@router.get("/history")
+async def get_chat_history(limit: int = 100, current_user: dict = Depends(get_current_user)):
+    cursor = get_db()["chat_logs"].find(
+        {"user_id": str(current_user["_id"])},
+        sort=[("created_at", -1)],
+        limit=limit,
+    )
+    docs = [_str_id(doc) async for doc in cursor]
+    return {"history": docs, "total": len(docs)}
+
+
+# ── DELETE /api/chat/history/{log_id} ────────────────────────────────────────
+@router.delete("/history/{log_id}")
+async def delete_chat_entry(log_id: str, current_user: dict = Depends(get_current_user)):
+    try:
+        oid = ObjectId(log_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid log ID")
+    result = await get_db()["chat_logs"].delete_one({
+        "_id":     oid,
+        "user_id": str(current_user["_id"]),
+    })
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Log not found")
+    return {"success": True, "deleted_id": log_id}
+
+
+# ── DELETE /api/chat/history/all ──────────────────────────────────────────────
+@router.delete("/history/all")
+async def clear_chat_history(current_user: dict = Depends(get_current_user)):
+    result = await get_db()["chat_logs"].delete_many(
+        {"user_id": str(current_user["_id"])}
+    )
+    return {"deleted": result.deleted_count, "message": "Chat history cleared."}

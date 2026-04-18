@@ -1,41 +1,82 @@
 # MediMate/backend/routers/mediscan_logs.py
-# POST /api/mediscan-logs/save   — save a symptom check result
-# GET  /api/mediscan-logs/       — history for current user
-import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from fastapi import APIRouter, Depends
+# Replace your existing mediscan_logs.py with this.
+# Adds: DELETE /api/mediscan-logs/{log_id}
+# Keeps: POST /save  and  GET /  (unchanged)
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List
-from datetime import datetime, timezone
+from typing import List, Optional
+from datetime import datetime
+from bson import ObjectId
+
 from database import get_db
 from auth import get_current_user
 
 router = APIRouter()
 
-class ConditionResult(BaseModel):
+# ── models ────────────────────────────────────────────────────────────────────
+class TopCondition(BaseModel):
     disease: str
     matched_count: int
-    confidence: int
+    confidence: float
 
-class MediScanSaveRequest(BaseModel):
-    symptoms_text:     Optional[str]  = None
-    symptom_tags:      List[str]      = []
-    severity:          int            = 5
-    duration:          str            = ""
-    top_conditions:    List[ConditionResult] = []
-    top_match:         Optional[str]  = None
+class MediScanLog(BaseModel):
+    symptoms_text:  str           = ""
+    symptom_tags:   List[str]     = []
+    severity:       int           = 5
+    duration:       str           = ""
+    top_conditions: List[TopCondition] = []
+    top_match:      Optional[str] = None
 
-@router.post("/save", status_code=201)
-async def save_scan(body: MediScanSaveRequest, user=Depends(get_current_user)):
-    col = get_db()["mediscan_logs"]
-    doc = { **body.model_dump(), "user_email": user["email"],
-            "logged_at": datetime.now(timezone.utc).isoformat() }
-    result = await col.insert_one(doc)
-    return {"id": str(result.inserted_id), "message": "Scan saved."}
+# ── helper ────────────────────────────────────────────────────────────────────
+def _str_id(doc: dict) -> dict:
+    if doc and "_id" in doc:
+        doc["_id"] = str(doc["_id"])
+    return doc
 
+# ── POST /api/mediscan-logs/save ──────────────────────────────────────────────
+@router.post("/save")
+async def save_mediscan(log: MediScanLog, current_user: dict = Depends(get_current_user)):
+    doc = log.dict()
+    doc["user_id"]    = str(current_user["_id"])
+    doc["created_at"] = datetime.utcnow()
+    result = await get_db()["mediscan_logs"].insert_one(doc)
+    return {"success": True, "id": str(result.inserted_id)}
+
+
+# ── GET /api/mediscan-logs/ ───────────────────────────────────────────────────
 @router.get("/")
-async def get_scan_history(limit: int = 20, user=Depends(get_current_user)):
-    col  = get_db()["mediscan_logs"]
-    docs = await col.find({"user_email": user["email"]}).sort("logged_at", -1).limit(limit).to_list(limit)
-    for d in docs: d["_id"] = str(d["_id"])
-    return {"count": len(docs), "history": docs}
+async def get_mediscan_history(limit: int = 20, current_user: dict = Depends(get_current_user)):
+    cursor = get_db()["mediscan_logs"].find(
+        {"user_id": str(current_user["_id"])},
+        sort=[("created_at", -1)],
+        limit=limit,
+    )
+    docs = [_str_id(doc) async for doc in cursor]
+    return {"history": docs, "total": len(docs)}
+
+
+# ── DELETE /api/mediscan-logs/all ─────────────────────────────────────────────
+@router.delete("/all")
+async def clear_mediscan_history(current_user: dict = Depends(get_current_user)):
+    result = await get_db()["mediscan_logs"].delete_many(
+        {"user_id": str(current_user["_id"])}
+    )
+    return {"deleted": result.deleted_count, "message": "MediScan history cleared."}
+
+
+# ── DELETE /api/mediscan-logs/{log_id} ───────────────────────────────────────
+@router.delete("/{log_id}")
+async def delete_mediscan(log_id: str, current_user: dict = Depends(get_current_user)):
+    try:
+        oid = ObjectId(log_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid log ID")
+
+    result = await get_db()["mediscan_logs"].delete_one({
+        "_id":     oid,
+        "user_id": str(current_user["_id"]),   # owner-scoped — can't delete others' logs
+    })
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Log not found")
+    return {"success": True, "deleted_id": log_id}

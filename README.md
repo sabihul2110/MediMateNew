@@ -1,3 +1,5 @@
+<!-- # MediMate/README.md -->
+
 # To run the backend, from MediMate/backend/:
 
 source ../.venv/bin/activate     # .venv is at root now

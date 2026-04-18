@@ -93,6 +93,9 @@ export default function Emergency() {
   const textMain = dark ? "#F1F5F9" : "#1A1A2E"
   const textMute = dark ? "#64748B" : "#8899B4"
   const accent   = dark ? "#60A5FA" : "#1B3A6B"
+  const surface2 = dark
+  ? "rgba(255,255,255,0.04)"
+  : "rgba(27,58,107,0.04)"
 
   useEffect(()=>{
     // Try to pre-fill from user profile

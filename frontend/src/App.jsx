@@ -2,19 +2,21 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { AppProvider, useApp } from "./context/ThemeContext"
 import { NotificationProvider } from "./context/NotificationContext"
-import AppLayout    from "./layouts/AppLayout"
-import Auth         from "./pages/Auth"
-import Dashboard    from "./pages/Dashboard"
-import MediScan     from "./pages/MediScan"
-import Tracking     from "./pages/Tracking"
-import Assistant    from "./pages/Assistant"
-import Insights     from "./pages/Insights"
-import Emergency    from "./pages/Emergency"
-import HeartRisk    from "./pages/HeartRisk"
-import Profile      from "./pages/Profile"
-import FindDoctor   from "./pages/FindDoctor"
-import ExportReport from "./pages/ExportReport"
-import Diet         from "./pages/Diet"
+import AppLayout      from "./layouts/AppLayout"
+import Auth           from "./pages/Auth"
+import Dashboard      from "./pages/Dashboard"
+import MediScan       from "./pages/MediScan"
+import Tracking       from "./pages/Tracking"
+import Assistant      from "./pages/Assistant"
+import Insights       from "./pages/Insights"
+import Emergency      from "./pages/Emergency"
+import HeartRisk      from "./pages/HeartRisk"
+import Profile        from "./pages/Profile"
+import FindDoctor     from "./pages/FindDoctor"
+import ExportReport   from "./pages/ExportReport"
+import Diet           from "./pages/Diet"
+import HealthHistory  from "./pages/HealthHistory"   // ← NEW
+
 
 function Guard({ children }) {
   const { user } = useApp()
@@ -37,6 +39,7 @@ function AppRoutes() {
         <Route path="/find-doctor"  element={<FindDoctor />} />
         <Route path="/export"       element={<ExportReport />} />
         <Route path="/diet"         element={<Diet />} />
+        <Route path="/history"      element={<HealthHistory />} />  {/* ← NEW */}
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -1,11 +1,12 @@
 // MediMate/frontend/src/layouts/AppLayout.jsx
 import { useState, useEffect } from "react"
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
-import { LayoutDashboard, Scan, Activity, Heart, MessageSquare, AlertTriangle, TrendingUp, Sun, Moon, LogOut, User, Salad, Search, Bell } from "lucide-react"
+import { LayoutDashboard, Scan, Activity, Heart, MessageSquare, AlertTriangle, TrendingUp, Sun, Moon, LogOut, User, Salad, Search, Bell, History } from "lucide-react"
 import { useApp } from "../context/ThemeContext"
 import { NotificationBell } from "../components/NotificationPanel"
 import NotificationPanel from "../components/NotificationPanel"
 import Onboarding, { getOnboardingKey } from "../components/Onboarding"
+import { searchDiseases, searchSymptoms } from "../api/index"
 
 const NAV = [
   { to: "/",           icon: LayoutDashboard, label: "Dashboard"       },
@@ -15,6 +16,7 @@ const NAV = [
   { to: "/diet",       icon: Salad,           label: "Diet & Nutrition"},
   { to: "/assistant",  icon: MessageSquare,   label: "AI Assistant"    },
   { to: "/insights",   icon: TrendingUp,      label: "Health Insights" },
+  { to: "/history",    icon: History,         label: "Health History"  }, 
 ]
 
 export default function AppLayout() {
@@ -27,6 +29,19 @@ export default function AppLayout() {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [hoveredNav,     setHoveredNav]     = useState(null)
   const [searchFocused,  setSearchFocused]  = useState(false)
+  const [searchQuery,    setSearchQuery]    = useState("")
+  const [searchResults,  setSearchResults]  = useState([])
+
+  const handleSearch = async (q) => {
+  setSearchQuery(q)
+  if (q.trim().length < 2) { setSearchResults([]); return }
+  try {
+    const [d, s] = await Promise.all([searchDiseases(q), searchSymptoms(q)])
+    const diseases  = (d.data.diseases || []).slice(0, 4).map(r => ({ label: r, type: "disease", to: `/mediscan` }))
+    const symptoms  = (s.data.symptoms || []).slice(0, 3).map(r => ({ label: r, type: "symptom", to: `/mediscan` }))
+    setSearchResults([...diseases, ...symptoms])
+  } catch { setSearchResults([]) }
+}
 
   useEffect(() => {
     if (!user?.email) return
@@ -40,7 +55,7 @@ export default function AppLayout() {
 
   const pageLabels = {
     "/emergency": "Emergency", "/profile": "Profile", "/find-doctor": "Find Doctor",
-    "/export": "Export Report", "/diet": "Diet & Nutrition",
+    "/export": "Export Report", "/diet": "Diet & Nutrition", "/history":     "Health History",
   }
   const current   = NAV.find(n => n.to === "/" ? location.pathname === "/" : location.pathname.startsWith(n.to))
   const pageTitle = pageLabels[location.pathname] || current?.label || "MediMate"
@@ -232,21 +247,24 @@ export default function AppLayout() {
 
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {/* Search */}
-            <div style={{
-              display: "flex", alignItems: "center", gap: 8,
-              background: searchFocused
-                ? (dark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.95)")
-                : (dark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.6)"),
-              border: `1px solid ${searchFocused ? (dark ? "rgba(41,82,163,0.5)" : "rgba(27,58,107,0.2)") : borderC}`,
-              borderRadius: 10, padding: "7px 14px",
-              transition: "all 0.2s",
+            <div style={{ position: "relative" }}>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                background: searchFocused
+                  ? (dark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.95)")
+                  : (dark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.6)"),
+                border: `1px solid ${searchFocused ? (dark ? "rgba(41,82,163,0.5)" : "rgba(27,58,107,0.2)") : borderC}`,
+                borderRadius: 10, padding: "7px 14px",
+                transition: "all 0.2s",
               boxShadow: searchFocused ? `0 0 0 3px ${accentGlow}` : "none",
             }}>
               <Search size={13} color={textMute} />
               <input
-                placeholder="Search..."
+                placeholder="Search diseases, symptoms..."
+                value={searchQuery}
+                onChange={e => handleSearch(e.target.value)}
                 onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
+                onBlur={() => setTimeout(() => { setSearchFocused(false); setSearchResults([]) }, 150)}
                 style={{
                   background: "none", border: "none", outline: "none",
                   fontSize: 13, color: textMain, width: 180,
@@ -254,7 +272,34 @@ export default function AppLayout() {
                 }}
               />
             </div>
-
+            {searchResults.length > 0 && (
+              <div style={{
+                position: "absolute", top: 46, left: 0, right: 0,
+                background: dark ? "#0F172A" : "#fff",
+                border: `1px solid ${borderC}`, borderRadius: 10,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 100, overflow: "hidden",
+              }}>
+                {searchResults.map((r, i) => (
+                  <div key={i} onClick={() => { navigate(r.to); setSearchQuery(""); setSearchResults([]) }}
+                    style={{ padding: "9px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+                      borderBottom: i < searchResults.length - 1 ? `1px solid ${borderC}` : "none",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = dark ? "rgba(255,255,255,0.05)" : "rgba(27,58,107,0.05)"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 999,
+                      background: r.type === "disease" ? (dark ? "#1E3A5F" : "#EEF2FF") : (dark ? "#14532d20" : "#F0FDF4"),
+                      color: r.type === "disease" ? (dark ? "#60A5FA" : "#1B3A6B") : "#16A34A",
+                      fontWeight: 600 }}>
+                      {r.type}
+                    </span>
+                    <span style={{ fontSize: 13, color: textMain }}>{r.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
             {/* Theme toggle */}
             <button onClick={toggleTheme} style={{
               background: dark ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.8)",
