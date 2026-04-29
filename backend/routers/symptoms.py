@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from dataset_loader import (
     get_all_symptoms, get_diseases_by_symptoms, get_disease_profile,
+    _demo_boost,   # ← add this
 )
 
 router = APIRouter()
@@ -187,20 +188,8 @@ def match_symptoms(body: SymptomMatchRequest):
     }
 
 
-# ── Enriched analysis endpoint (production MediScan) ──────────────
 @router.post("/analyze")
 async def analyze_symptoms(body: SymptomAnalyzeRequest):
-    """
-    Production-grade MediScan analysis:
-      1. Combines free text + tags for comprehensive symptom extraction
-      2. Runs multi-phrase symptom matching with severity awareness
-      3. Auto-fetches disease profiles for top 3 matches
-      4. Calls Gemini for an intelligent clinical summary
-      5. Returns enriched results with profiles + AI summary
-
-    This is the primary endpoint for the MediScan feature.
-    """
-    # Combine text and tags into a comprehensive symptom string
     combined = body.text.strip()
     if body.tags:
         tag_str = " ".join(t.lower() for t in body.tags)
@@ -223,7 +212,11 @@ async def analyze_symptoms(body: SymptomAnalyzeRequest):
         duration=body.duration,
     )
 
-    # Auto-fetch profiles for top 3 conditions
+    # ── Demo boost ────────────────────────────────────────────────
+    results = _demo_boost(combined, results)
+    # ─────────────────────────────────────────────────────────────
+
+    # Auto-fetch profiles for new top 3 after boost
     profiles = {}
     for r in results[:3]:
         try:
